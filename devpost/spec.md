@@ -27,7 +27,7 @@ The web pages ask the server for the floor state every second and redraw it. Dem
   - The native DLLs live in `lib/`, which is gitignored.
   - **People:** OpenCV zoo NanoDet (`object_detection_nanodet_2022nov.onnx`, Apache-2.0) through `org.opencv.dnn`, person class only, score threshold 0.5 (spike: 0.35 flagged traffic cones).
   - **Markers:** `ArucoDetector`, `DICT_4X4_50`.
-- **Front end:** plain HTML, CSS and JS served from `static/`, with no build step.
+- **Front end:** plain HTML, CSS and JS in `frontend/` at the repo root, packaged by Maven as the static web root. No build step.
 
 ## Where It Runs and How Someone Tries It
 - Locally on Windows: `mvnw spring-boot:run`, then open http://localhost:8080 (Floor) and http://localhost:8080/wait.
@@ -84,10 +84,11 @@ src/main/java/turn/turn/
   floor/        FloorEngine, Table, TableState, Alert, AlertType, Party, WaitEstimator, TableObservation, FloorSnapshot
   vision/       NativeLoader, PersonDetector, MarkerDetector, VisionService
   demo/         DemoSource
-  web/          FloorController, StreamController
+  web/          FloorController, StreamController, WebConfig
 src/main/resources/
-  application.properties
-  static/index.html, wait.html, turn.css, floor.js, wait.js
+  application.yml, application-clip.yml
+frontend/
+  index.html, wait.html, css/turn.css, js/floor.js, js/wait.js
 src/test/java/turn/turn/floor/FloorEngineTest.java
 lib/ (gitignored): opencv-500.jar, *.dll, models/, badges/
 ```
