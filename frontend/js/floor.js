@@ -77,6 +77,25 @@ function renderWaitlist(list, avg, done) {
   $("avg").textContent = `Average table time: ${avg} min${done ? ` (learned from ${done} finished table${done === 1 ? "" : "s"})` : " (starting estimate)"}`;
 }
 
+function secs(v) {
+  if (v == null) return "–";
+  return v < 60 ? `${v} s` : `${Math.floor(v / 60)}m ${String(v % 60).padStart(2, "0")}s`;
+}
+
+function renderInsights(i) {
+  if (!i) return;
+  const stat = (label, value) => `<div class="stat"><div class="v num">${value}</div><div class="l">${label}</div></div>`;
+  $("insights").innerHTML = `
+    <div class="stats">
+      ${stat("covers", i.covers)}
+      ${stat("avg first visit", secs(i.avgGreetSec))}
+      ${stat("alerts answered", `${i.alertsAnswered}/${i.alertsRaised}`)}
+      ${stat("avg table reset", secs(i.avgTurnSec))}
+    </div>
+    ${i.responses.length ? `<div class="responses">${i.responses.map((r) => `<div><span>${esc(r.label)}</span><b class="num">${secs(r.avgSec)}</b></div>`).join("")}</div>` : ""}
+    <ul class="tips">${i.tips.map((t) => `<li>${esc(t)}</li>`).join("")}</ul>`;
+}
+
 let toastTimer;
 function toast(msg, bad) {
   const t = $("toast");
@@ -133,6 +152,7 @@ async function refresh() {
     renderAlerts(s.alerts);
     renderServers(s.servers, s.suggestedServer);
     renderWaitlist(s.waitlist, s.avgDiningMin, s.completedSeatings);
+    renderInsights(s.insights);
     updateCamera(s.source);
   } catch (e) {
     $("status").textContent = "Lost connection to Turn. Retrying…";

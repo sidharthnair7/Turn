@@ -32,6 +32,11 @@ Restaurant-floor products like Shire (YC Fall 2026) use CCTV to track tables for
   - Guests join from `/wait` and see their place and estimate live.
   - The host presses **Seat**, and Turn picks the smallest free table that fits and blocks double-seating.
 - **Wait estimate:** simulates the host seating everyone ahead of you at the soonest table that fits. It uses each table's time seated and an average dining time learned from finished tables.
+- **Shift insights** (Turn's take on an AI operations panel):
+  - covers served, average time to first visit, alerts raised and answered
+  - response time per alert type, and how fast tables are reset
+  - plain-language tips like "Slowest first visit: Table 2 waited 34 s"
+  - per table and per alert type, never per person
 - **Privacy view:** a camera preview with every face blurred (OpenCV zoo YuNet; if a face isn't found, the top of the person's box is blurred) and staff labelled only by badge number.
 
 ## Run it

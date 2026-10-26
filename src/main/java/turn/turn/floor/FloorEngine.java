@@ -33,6 +33,7 @@ public class FloorEngine {
     private final AtomicLong ids = new AtomicLong();
     private double avgDiningMin;
     private int completedSeatings;
+    private ShiftStats stats = new ShiftStats();
     private String sourceStatus = "starting";
 
     @Autowired
@@ -57,6 +58,7 @@ public class FloorEngine {
         waitlist.clear();
         avgDiningMin = timing.avgDiningMin();
         completedSeatings = 0;
+        stats = new ShiftStats();
     }
 
     public synchronized void setSourceStatus(String status) {
@@ -98,8 +100,9 @@ public class FloorEngine {
             }
             case BUSSING -> {
                 if (!obs.staffBadges().isEmpty() && obs.guests() == 0) {
+                    stats.turned(secondsSince(t.stateSince, now));
+                    answer(t, EnumSet.of(AlertType.BUSSING), now);
                     t.moveTo(TableState.READY, now);
-                    clearAlerts(t, EnumSet.of(AlertType.BUSSING));
                 }
             }
         }
@@ -113,9 +116,10 @@ public class FloorEngine {
         t.checkVisible = obs.checkCard();
 
         if (!obs.staffBadges().isEmpty() && t.state == TableState.SEATED) {
+            if (t.lastVisitAt == null) stats.greeted(t.config.name(), secondsSince(t.seatedAt, now));
             t.lastVisitAt = now;
             if (t.serverBadge == null) t.serverBadge = Collections.min(obs.staffBadges());
-            clearAlerts(t, EnumSet.of(AlertType.NOT_GREETED, AlertType.CHECK_IN, AlertType.HELP, AlertType.CHECK));
+            answer(t, EnumSet.of(AlertType.NOT_GREETED, AlertType.CHECK_IN, AlertType.HELP, AlertType.CHECK), now);
         }
     }
 
@@ -128,6 +132,7 @@ public class FloorEngine {
         t.reservedFor = null;
         t.reservedAt = null;
         clearAlerts(t, EnumSet.allOf(AlertType.class));
+        stats.seated(t.guests);
     }
 
     private void leave(Table t, Instant now) {
@@ -153,7 +158,20 @@ public class FloorEngine {
 
     private void raise(Table t, AlertType type, Instant now) {
         boolean open = alerts.stream().anyMatch(a -> a.tableId.equals(t.id()) && a.type == type);
-        if (!open) alerts.add(new Alert(ids.incrementAndGet(), t.id(), type, now));
+        if (!open) {
+            alerts.add(new Alert(ids.incrementAndGet(), t.id(), type, now));
+            stats.raised();
+        }
+    }
+
+    /** Staff dealt with these alerts: record how long each took, then clear them. */
+    private void answer(Table t, Set<AlertType> types, Instant now) {
+        for (Alert a : alerts) {
+            if (!a.tableId.equals(t.id()) || !types.contains(a.type)) continue;
+            double secs = secondsSince(a.raisedAt, now);
+            stats.answered(a.type, secs, secs >= overdueAfter(a.type));
+        }
+        clearAlerts(t, types);
     }
 
     private void clearAlerts(Table t, Set<AlertType> types) {
@@ -256,7 +274,8 @@ public class FloorEngine {
         }
 
         return new FloorSnapshot(props.isDemo() ? "DEMO" : "CAMERA", sourceStatus, now.toEpochMilli(), tableViews,
-                alertViews, serverViews, suggestedName, partyViews, round1(avgDiningMin), completedSeatings);
+                alertViews, serverViews, suggestedName, partyViews, round1(avgDiningMin), completedSeatings,
+                stats.view(timing.greetWithin(), (int) alertViews.stream().filter(FloorSnapshot.AlertView::overdue).count()));
     }
 
     /** Estimate for a party not yet on the list: everyone already waiting is seated first. */

@@ -72,6 +72,18 @@ class FloorEngineTest {
     }
 
     @Test
+    void shiftInsightsTrackGreetTimeAndAnswers() {
+        see(13, TableObservation.of("T1", 2, Set.of()));
+        see(1, TableObservation.of("T1", 2, Set.of(1)));
+        var i = engine.snapshot().insights();
+        assertEquals(2, i.covers());
+        assertEquals(1, i.alertsRaised());
+        assertEquals(1, i.alertsAnswered());
+        assertEquals(11, i.avgGreetSec(), "seated at 2 s, first badge seen at 13 s");
+        assertTrue(i.tips().get(0).contains("over the 10 s target"));
+    }
+
+    @Test
     void checkCardRaisesOnceAndClearsOnVisit() {
         see(3, TableObservation.of("T1", 2, Set.of(1)));
         see(2, new TableObservation("T1", 2, Set.of(), false, true));

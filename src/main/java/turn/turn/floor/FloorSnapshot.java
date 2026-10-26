@@ -13,7 +13,8 @@ public record FloorSnapshot(
         String suggestedServer,
         List<PartyView> waitlist,
         double avgDiningMin,
-        int completedSeatings) {
+        int completedSeatings,
+        Insights insights) {
 
     public record TableView(String id, int number, String name, int seats, String state, int guests,
                             Long seatedForSec, Long sinceVisitSec, String server, String party,
@@ -25,6 +26,14 @@ public record FloorSnapshot(
     }
 
     public record ServerView(int badge, String name, int load, List<String> tables) {
+    }
+
+    /** Shift numbers and tips: per table and per alert type, never per person. */
+    public record Insights(int covers, int seatings, Long avgGreetSec, Long avgTurnSec, int alertsRaised,
+                           int alertsAnswered, int overdue, List<ResponseView> responses, List<String> tips) {
+    }
+
+    public record ResponseView(String label, int count, long avgSec) {
     }
 
     public record PartyView(String id, String name, int size, int position, long waitedSec, Integer etaMin) {
