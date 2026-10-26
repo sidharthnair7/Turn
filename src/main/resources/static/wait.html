@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Turn · Wait</title>
+  <link rel="stylesheet" href="turn.css">
+</head>
+<body class="guest">
+<div class="guest-card">
+  <div class="brand">Turn<span>.</span></div>
+  <div class="lead">Live wait time, from what's actually happening on the floor.</div>
+
+  <label>Party size
+    <select id="size">
+      <option>1</option><option selected>2</option><option>3</option><option>4</option><option>5</option><option>6</option>
+    </select>
+  </label>
+
+  <div style="margin-top:22px">
+    <div id="estimate" class="big num">…</div>
+    <div id="sub" class="sub"></div>
+  </div>
+
+  <div id="mine" class="mine" hidden></div>
+
+  <form id="join">
+    <label>Your name <input id="name" maxlength="30" placeholder="So the host can call you" required></label>
+    <button class="primary" type="submit">Join the waitlist</button>
+  </form>
+
+  <p class="privacy">Turn counts tables, never faces. No photos of you are saved or sent anywhere.</p>
+  <p class="privacy" id="demo-note" hidden>Demo mode: the restaurant floor is simulated.</p>
+</div>
+<script src="wait.js"></script>
+</body>
+</html>
