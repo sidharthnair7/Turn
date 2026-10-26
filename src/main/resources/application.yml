@@ -1,0 +1,41 @@
+spring:
+  application:
+    name: Turn
+
+turn:
+  # demo | camera:0 | file:C:/path/to/clip.mp4
+  source: demo
+  opencv-dir: lib
+  model-path: lib/models/object_detection_nanodet_2022nov.onnx
+  person-score: 0.5
+
+  # Real-service timings (seconds unless named otherwise)
+  timing:
+    seat-after: 2
+    leave-after: 5
+    greet-within: 120
+    check-in-every: 600
+    respond-within: 120
+    ready-for: 30
+    avg-dining-min: 45
+  # Demo mode compresses a dinner service into about two minutes
+  demo-timing:
+    seat-after: 2
+    leave-after: 4
+    greet-within: 15
+    check-in-every: 30
+    respond-within: 15
+    ready-for: 10
+    avg-dining-min: 1.5
+
+  servers:
+    - { badge: 1, name: Priya }
+    - { badge: 2, name: Marco }
+    - { badge: 3, name: Jun }
+
+  # Zones are pixel rectangles in the camera frame. Cards: HELP = 20 + number, CHECK = 30 + number.
+  tables:
+    - { number: 1, name: "Table 1", seats: 2, x: 40,  y: 260, w: 220, h: 200 }
+    - { number: 2, name: "Table 2", seats: 4, x: 280, y: 260, w: 220, h: 200 }
+    - { number: 3, name: "Table 3", seats: 2, x: 520, y: 260, w: 220, h: 200 }
+    - { number: 4, name: "Table 4", seats: 6, x: 760, y: 260, w: 260, h: 200 }

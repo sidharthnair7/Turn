@@ -35,11 +35,13 @@
             <artifactId>spring-boot-starter-webmvc</artifactId>
         </dependency>
 
+        <!-- OpenCV 5.0.0 Java bindings from OpenCV's official Windows package, installed locally:
+             mvn install:install-file -Dfile=lib/opencv-500.jar -DgroupId=org.opencv -DartifactId=opencv -Dversion=5.0.0 -Dpackaging=jar
+             (devtools removed: its restart classloader can't reload the OpenCV native library) -->
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-devtools</artifactId>
-            <scope>runtime</scope>
-            <optional>true</optional>
+            <groupId>org.opencv</groupId>
+            <artifactId>opencv</artifactId>
+            <version>5.0.0</version>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
