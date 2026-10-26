@@ -190,7 +190,7 @@ public class VisionService {
             };
             Rect zone = new Rect(t.x(), t.y(), t.w(), t.h());
             Imgproc.rectangle(out, zone, c, 3);
-            Imgproc.putText(out, t.name(), new Point(t.x() + 6, t.y() + 22), Imgproc.FONT_HERSHEY_SIMPLEX, 0.7, c, 2);
+            Imgproc.putText(out, t.name() == null ? t.id() : t.name(), new Point(t.x() + 6, t.y() + 22), Imgproc.FONT_HERSHEY_SIMPLEX, 0.7, c, 2);
         }
         MatOfByte jpg = new MatOfByte();
         Imgcodecs.imencode(".jpg", out, jpg, new MatOfInt(Imgcodecs.IMWRITE_JPEG_QUALITY, 75));
