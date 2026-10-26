@@ -84,6 +84,7 @@ demo script ──────────────────────�
 - `floor/FloorEngine.java`: the state machine, alert routing, load, and the waitlist simulation. It only ever sees counts and badge IDs, never images.
 - `vision/`: `PersonDetector` (OpenCV zoo NanoDet, ported to Java and OpenCV 5), `MarkerDetector` (ArUco), and `VisionService` (capture loop and privacy preview).
 - `demo/DemoSource.java`: the scripted service.
+- [`frontend/`](frontend/): the Floor and Wait pages in plain HTML, CSS and JS. Maven packages them as the web root, so `/` and `/wait` serve them.
 - Tests: `mvnw test`. They cover seating, greeting, the check card, bussing, double-seat blocking, table choice and wait estimates.
 
 ## Limits we measured (OpenCV 5, on a laptop)
