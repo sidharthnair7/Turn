@@ -1,0 +1,17 @@
+# Runs Turn's real OpenCV 5 vision on free-licence restaurant footage (Mixkit clip 44025,
+# "Man and woman eating and talking", https://mixkit.co/free-stock-video/man-and-woman-eating-and-talking-44025/).
+# Download it to lib/samples/ (see README), then:
+#   mvnw spring-boot:run -Dspring-boot.run.profiles=restaurant
+# Timings are shortened so a 14-second looping clip can show Seated -> Not greeted -> Overdue.
+turn:
+  source: file:lib/samples/mixkit-44025-couple-eating.mp4
+  timing:
+    seat-after: 2
+    leave-after: 6
+    greet-within: 15
+    check-in-every: 30
+    respond-within: 15
+    ready-for: 10
+    avg-dining-min: 45
+  tables:
+    - { number: 1, name: "Table 1", seats: 2, x: 60, y: 140, w: 1160, h: 580 }

@@ -65,6 +65,7 @@ Needs Java 25 and Windows. The OpenCV 5 Java bindings come from OpenCV's officia
   - Print the badges and table cards from [`markers/`](markers/).
 - **`file:path/to/clip.mp4`:** a recorded clip.
   - `mvnw spring-boot:run -Dspring-boot.run.profiles=clip` runs the real pipeline on OpenCV's own sample video (`lib/samples/vtest.avi`, copied from the OpenCV package).
+  - `mvnw spring-boot:run -Dspring-boot.run.profiles=restaurant` runs it on free-licence restaurant footage: Mixkit clip 44025, "Man and woman eating and talking". Download https://assets.mixkit.co/videos/44025/44025-720.mp4 to `lib/samples/mixkit-44025-couple-eating.mp4`. The diner is detected and blurred, the table goes Seated, then Not greeted.
 
 ### Markers (ArUco, `DICT_4X4_50`) in `markers/`
 
