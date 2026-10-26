@@ -5,9 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Turn · Every table covered</title>
   <link rel="stylesheet" href="css/turn.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Instrument+Serif:ital@1&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/landing.css">
 </head>
 <body class="landing">
+<div class="mesh" aria-hidden="true"><i></i><i></i><i></i></div>
+<div class="grid-bg" aria-hidden="true"></div>
+<div id="glow" aria-hidden="true"></div>
 <nav class="nav">
   <a href="/" class="brand">Turn<span>.</span></a>
   <div class="spacer"></div>
@@ -19,7 +24,7 @@
 
 <header class="hero">
   <div class="eyebrow">For small restaurants on a busy night</div>
-  <h1>Every table covered.<br><span>From one camera you already own.</span></h1>
+  <h1 class="split">Every table <em>covered.</em><br><span>From one camera you already own.</span></h1>
   <p class="lede">Turn watches the floor so the host doesn't have to. It sees which table has been sitting too long without a visit,
     sends that task to the right server, keeps everyone's load fair, and shows guests at the door a wait time based on
     what's actually happening.</p>
@@ -35,6 +40,15 @@
   </div>
 </header>
 
+<section class="band stats-band">
+  <div class="kpis">
+    <div><b data-to="1">0</b><span>camera, no CCTV install</span></div>
+    <div><b data-to="5">0</b><span>alert types, routed automatically</span></div>
+    <div><b data-to="0">0</b><span>faces stored, ever</span></div>
+    <div><b data-to="17" data-suffix=" ms">0</b><span>to find people in a frame (OpenCV 5)</span></div>
+  </div>
+</section>
+
 <section class="band">
   <h2 class="section-title">What Turn does that the big systems don't</h2>
   <div class="cards">
@@ -49,7 +63,7 @@
       <p>One laptop or phone camera runs it. No point-of-sale swap, no install crew, no monthly hardware.</p>
     </div>
     <div class="card">
-      <div class="icon">🪪</div>
+      <div class="icon">🏷️</div>
       <h3>Badges, not faces</h3>
       <p>Staff wear a printed badge, so the camera knows "staff" without knowing who. No face recognition, no per-person speed scores.</p>
     </div>
@@ -85,5 +99,45 @@
   <div><b>Turn</b>. Built with Java, Spring Boot and OpenCV 5 for Devpost's Build With AI: Basics.</div>
   <a href="https://github.com/sidharthnair7/Turn">Source on GitHub</a>
 </footer>
+<script>
+  const glow = document.getElementById("glow");
+  addEventListener("pointermove", (e) => { glow.style.transform = `translate(${e.clientX - 300}px, ${e.clientY - 300}px)`; });
+  const io = new IntersectionObserver((es) => es.forEach((x) => x.isIntersecting && x.target.classList.add("in")), { threshold: 0.15 });
+  document.querySelectorAll(".card, .steps li, .privacy-grid p, .section-title, .kpis > div").forEach((el, i) => { el.classList.add("reveal"); el.style.transitionDelay = (i % 4) * 90 + "ms"; io.observe(el); });
+  // split the headline into words that rise in one by one
+  const h = document.querySelector("h1.split");
+  let n = 0;
+  h.querySelectorAll("*").forEach(() => {});
+  const wrap = (node) => {
+    [...node.childNodes].forEach((c) => {
+      if (c.nodeType === 3) {
+        const frag = document.createDocumentFragment();
+        c.textContent.split(/(\s+)/).forEach((w) => {
+          if (!w.trim()) { frag.append(w); return; }
+          const sp = document.createElement("span"); sp.className = "w"; sp.style.animationDelay = (n++ * 70) + "ms"; sp.textContent = w; frag.append(sp);
+        });
+        c.replaceWith(frag);
+      } else if (c.nodeType === 1 && c.tagName !== "BR") wrap(c);
+    });
+  };
+  wrap(h);
+  // count-up numbers
+  const cio = new IntersectionObserver((es) => es.forEach((x) => {
+    if (!x.isIntersecting) return; cio.unobserve(x.target);
+    const el = x.target, to = +el.dataset.to, suf = el.dataset.suffix || ""; const t0 = performance.now();
+    const step = (t) => { const p = Math.min(1, (t - t0) / 1200); el.textContent = Math.round(to * (1 - Math.pow(1 - p, 3))) + suf; if (p < 1) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  }), { threshold: 0.5 });
+  document.querySelectorAll("[data-to]").forEach((el) => cio.observe(el));
+  // hero card tilts toward the cursor
+  const card = document.querySelector(".hero-card");
+  addEventListener("pointermove", (e) => {
+    const rx = (e.clientY / innerHeight - 0.5) * -8, ry = (e.clientX / innerWidth - 0.5) * 10;
+    card.style.setProperty("--rx", rx + "deg"); card.style.setProperty("--ry", ry + "deg");
+  });
+  // nav gains a shadow once you scroll
+  const nav = document.querySelector(".nav");
+  addEventListener("scroll", () => nav.classList.toggle("scrolled", scrollY > 10), { passive: true });
+</script>
 </body>
 </html>
