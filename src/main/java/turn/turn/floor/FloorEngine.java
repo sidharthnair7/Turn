@@ -1,5 +1,6 @@
 package turn.turn.floor;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import turn.turn.config.TurnProperties;
 import turn.turn.config.TurnProperties.ServerConfig;
@@ -34,6 +35,7 @@ public class FloorEngine {
     private int completedSeatings;
     private String sourceStatus = "starting";
 
+    @Autowired
     public FloorEngine(TurnProperties props) {
         this(props, Clock.systemUTC());
     }
@@ -250,54 +252,44 @@ public class FloorEngine {
         for (int i = 0; i < waitlist.size(); i++) {
             Party p = waitlist.get(i);
             partyViews.add(new FloorSnapshot.PartyView(p.id(), p.name(), p.size(), i + 1,
-                    (long) secondsSince(p.joinedAt(), now), estimateMinutes(p.size(), aheadOf(i, p.size()), now)));
+                    (long) secondsSince(p.joinedAt(), now), estimateMinutes(waitlist.subList(0, i), p.size(), now)));
         }
 
         return new FloorSnapshot(props.isDemo() ? "DEMO" : "CAMERA", sourceStatus, now.toEpochMilli(), tableViews,
                 alertViews, serverViews, suggestedName, partyViews, round1(avgDiningMin), completedSeatings);
     }
 
-    /** Estimate for a party not yet on the list: everyone already waiting who needs a table this size goes first. */
+    /** Estimate for a party not yet on the list: everyone already waiting is seated first. */
     public synchronized Integer estimateForNewParty(int size) {
-        return estimateMinutes(size, aheadOf(waitlist.size(), size), clock.instant());
-    }
-
-    private int aheadOf(int index, int size) {
-        int ahead = 0;
-        for (int i = 0; i < index; i++) if (fits(waitlist.get(i).size(), size)) ahead++;
-        return ahead;
-    }
-
-    // Parties compete for the same tables when the smaller one could use the larger one's table.
-    private boolean fits(int otherSize, int size) {
-        return tables.values().stream().anyMatch(t -> t.config.seats() >= otherSize && t.config.seats() >= size);
+        return estimateMinutes(waitlist, size, clock.instant());
     }
 
     /**
-     * Minutes until a table that fits this party is likely free, given how many fitting parties are ahead.
-     * Null if no table in the restaurant fits the party.
+     * Minutes until this party likely gets a table. Simulates the host seating the parties ahead, in order,
+     * each at the soonest table that fits (smallest table on a tie). A busy table frees up after the average
+     * dining time minus how long it has been seated, plus time to turn it. Null if no table fits the party.
      */
-    Integer estimateMinutes(int size, int ahead, Instant now) {
-        List<Table> fitting = tables.values().stream().filter(t -> t.config.seats() >= size).toList();
-        if (fitting.isEmpty()) return null;
-        long free = fitting.stream().filter(t -> t.state.isFree() && t.reservedFor == null).count();
-        if (ahead < free) return 0;
-
-        List<Double> remaining = new ArrayList<>();
-        for (Table t : fitting) {
-            if (t.state.isFree() && t.reservedFor == null) continue;
-            double left = switch (t.state) {
+    Integer estimateMinutes(List<Party> ahead, int size, Instant now) {
+        if (tables.values().stream().noneMatch(t -> t.config.seats() >= size)) return null;
+        record Slot(int seats, double freeInMin) {
+        }
+        List<Slot> slots = new ArrayList<>();
+        for (Table t : tables.values()) {
+            double freeIn = switch (t.state) {
+                case EMPTY, READY -> t.reservedFor == null ? 0 : avgDiningMin + TURN_TABLE_MIN;
                 case SEATED -> Math.max(MIN_REMAINING_MIN, avgDiningMin - secondsSince(t.seatedAt, now) / 60.0) + TURN_TABLE_MIN;
                 case BUSSING -> TURN_TABLE_MIN;
-                default -> avgDiningMin + TURN_TABLE_MIN; // reserved for someone about to sit
             };
-            remaining.add(left);
+            slots.add(new Slot(t.config.seats(), freeIn));
         }
-        if (remaining.isEmpty()) return 0;
-        Collections.sort(remaining);
-        int idx = (int) (ahead - free);
-        int rounds = idx / remaining.size();
-        double minutes = remaining.get(idx % remaining.size()) + rounds * (avgDiningMin + TURN_TABLE_MIN);
+        Comparator<Slot> soonestThenSmallest = Comparator.comparingDouble(Slot::freeInMin).thenComparingInt(Slot::seats);
+        for (Party p : ahead) {
+            slots.stream().filter(sl -> sl.seats() >= p.size()).min(soonestThenSmallest).ifPresent(taken -> {
+                slots.remove(taken);
+                slots.add(new Slot(taken.seats(), taken.freeInMin() + avgDiningMin + TURN_TABLE_MIN));
+            });
+        }
+        double minutes = slots.stream().filter(sl -> sl.seats() >= size).min(soonestThenSmallest).orElseThrow().freeInMin();
         return (int) Math.ceil(minutes);
     }
 
