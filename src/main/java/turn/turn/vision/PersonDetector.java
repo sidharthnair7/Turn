@@ -12,7 +12,7 @@ import java.util.List;
  * Finds people with OpenCV zoo's NanoDet (COCO, 416x416) through OpenCV 5's dnn module.
  * Pre/post-processing is ported from opencv_zoo/models/object_detection_nanodet/nanodet.py.
  */
-public class PersonDetector {
+public class PersonDetector implements PeopleDetector {
     private static final int SIZE = 416, REG_MAX = 7, COCO_CLASSES = 80;
     private static final int[] STRIDES = {8, 16, 32, 64};
     private static final float IOU = 0.6f;
@@ -25,6 +25,7 @@ public class PersonDetector {
         this.scoreThreshold = (float) scoreThreshold;
     }
 
+    @Override
     public List<Rect> detect(Mat bgr) {
         // Letterbox to 416x416 in RGB, then (pixel - mean) / std as the zoo model expects.
         Mat rgb = new Mat();

@@ -64,7 +64,7 @@ public class VisionService {
     private void run() {
         try {
             NativeLoader.load(props.opencvDir());
-            PersonDetector people = new PersonDetector(props.modelPath(), props.personScore());
+            PeopleDetector people = PeopleDetector.forModel(props.modelPath(), props.personScore());
             MarkerDetector markers = new MarkerDetector();
             // YuNet face model sits next to the person model (OpenCV zoo, face_detection_yunet_2023mar.onnx)
             faces = new FaceBlurrer(java.nio.file.Path.of(props.modelPath()).resolveSibling("face_detection_yunet_2023mar.onnx").toString());

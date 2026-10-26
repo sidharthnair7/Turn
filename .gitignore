@@ -40,8 +40,6 @@ lib/
 clips/
 *.mp4
 
-### Devpost Learn: personal context stays out of commits ###
-/devpost/learner-profile.md
 
 ### Local credentials ###
 .env

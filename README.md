@@ -2,7 +2,7 @@
 
 **Turn runs a restaurant floor from one camera you already own.** It sees which tables need someone, sends the task to the right server, keeps the workload fair, and shows guests at the door an honest wait time. It does this without face recognition and without saving a single frame.
 
-Built in Java 25 with Spring Boot and **OpenCV 5**, for Devpost's *Build With AI: Basics*, using the Devpost Learn skill pack. The planning docs are in [`devpost/`](devpost/): [scope](devpost/scope.md), [PRD](devpost/prd.md), [spec](devpost/spec.md).
+Built in Java 25 with Spring Boot and **OpenCV 5**.
 
 ## Why
 

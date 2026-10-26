@@ -1,0 +1,22 @@
+# Turn's real vision on a full dining room: Pexels video 16478422 ("People are sitting at tables in a restaurant",
+# https://www.pexels.com/video/people-are-sitting-at-tables-in-a-restaurant-16478422/, free Pexels licence).
+# Download https://www.pexels.com/download/video/16478422/ to lib/samples/pexels-16478422.mp4, then:
+#   mvnw spring-boot:run -Dspring-boot.run.profiles=dining
+# Uses the larger YOLOX model so seated diners across the room are found. Timings are shortened for a short clip.
+turn:
+  source: file:lib/samples/pexels-16478422.mp4
+  model-path: lib/models/object_detection_yolox_2022nov.onnx
+  person-score: 0.35
+  timing:
+    seat-after: 2
+    leave-after: 6
+    greet-within: 12
+    check-in-every: 40
+    respond-within: 12
+    ready-for: 10
+    avg-dining-min: 45
+  tables:
+    - { number: 1, name: "Counter 1", seats: 2, x: 330, y: 600, w: 400, h: 400 }
+    - { number: 2, name: "Booth 2",   seats: 4, x: 1060, y: 500, w: 220, h: 430 }
+    - { number: 3, name: "Booth 3",   seats: 2, x: 1290, y: 560, w: 150, h: 220 }
+    - { number: 4, name: "Booth 4",   seats: 4, x: 780, y: 520, w: 270, h: 140 }
