@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Turn · Floor</title>
+  <link rel="stylesheet" href="css/turn.css">
+</head>
+<body>
+<header class="bar">
+  <div>
+    <a href="/" class="brand" style="color:inherit;text-decoration:none">Turn<span>.</span></a>
+    <div class="tagline">Floor view for the host: which table needs someone, and who should go.</div>
+  </div>
+  <div class="spacer"></div>
+  <span id="status" class="status"></span>
+  <span id="source" class="pill">…</span>
+  <button id="restart" hidden>Restart demo</button>
+  <a href="/wait" target="_blank"><button>Guest wait page ↗</button></a>
+  <span id="clock" class="clock num"></span>
+</header>
+
+<main class="floor">
+  <div>
+    <h2>Tables</h2>
+    <div id="tables" class="tables"></div>
+
+    <div class="camera">
+      <img id="camera" alt="Privacy-blurred camera view" hidden>
+      <div id="camera-note" class="note"></div>
+    </div>
+  </div>
+
+  <aside>
+    <section>
+      <h2>Needs someone now</h2>
+      <div id="alerts"></div>
+    </section>
+    <section>
+      <h2>Server load</h2>
+      <div id="servers"></div>
+      <div id="suggest" class="suggest"></div>
+    </section>
+    <section>
+      <h2>Waitlist</h2>
+      <div id="waitlist"></div>
+      <div class="suggest" id="avg"></div>
+    </section>
+    <p class="privacy">Turn tracks tables, not faces. Faces are blurred in the camera view, staff are known only by a badge,
+      and no frame is ever saved or sent anywhere.</p>
+  </aside>
+</main>
+<div id="toast" class="toast"></div>
+<script src="js/floor.js"></script>
+</body>
+</html>

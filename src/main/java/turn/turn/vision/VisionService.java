@@ -23,7 +23,7 @@ import java.util.*;
 
 /**
  * Reads the camera or a clip, finds people and markers with OpenCV 5, turns them into one
- * observation per table for the FloorEngine, and keeps a privacy-blurred preview frame.
+ * observation per table for the FloorEngine, and keeps a preview frame with every face blurred.
  * Raw frames never leave this class and are never written to disk.
  */
 @Service
@@ -35,6 +35,7 @@ public class VisionService {
     private final FloorEngine engine;
     private volatile boolean running;
     private volatile byte[] latestJpeg;
+    private FaceBlurrer faces;
     private Thread worker;
 
     public VisionService(TurnProperties props, FloorEngine engine) {
@@ -65,6 +66,8 @@ public class VisionService {
             NativeLoader.load(props.opencvDir());
             PersonDetector people = new PersonDetector(props.modelPath(), props.personScore());
             MarkerDetector markers = new MarkerDetector();
+            // YuNet face model sits next to the person model (OpenCV zoo, face_detection_yunet_2023mar.onnx)
+            faces = new FaceBlurrer(java.nio.file.Path.of(props.modelPath()).resolveSibling("face_detection_yunet_2023mar.onnx").toString());
             String src = props.source();
             boolean isFile = src.startsWith("file:");
             VideoCapture cap = isFile ? new VideoCapture(src.substring(5))
@@ -160,15 +163,14 @@ public class VisionService {
         return new Rect(r.x - dx, r.y - dy, r.width + 2 * dx, r.height + 2 * dy);
     }
 
-    /** Privacy view: every person blurred, zones coloured by table state, staff labelled by badge only. */
+    /** Privacy view: every face blurred, zones coloured by table state, staff labelled by badge only. */
     private byte[] preview(Mat frame, List<Rect> people, Map<Rect, Integer> staffPeople, List<Marker> badges) {
         Mat out = frame.clone();
         Rect bounds = new Rect(0, 0, out.cols(), out.rows());
+        if (faces != null) faces.blurFaces(out, people);
         for (Rect p : people) {
             Rect r = intersect(p, bounds);
             if (r.width < 2 || r.height < 2) continue;
-            Mat roi = out.submat(r);
-            Imgproc.blur(roi, roi, new Size(Math.max(15, r.width / 3), Math.max(15, r.height / 3)));
             boolean isStaff = staffPeople.containsKey(p);
             Scalar c = isStaff ? new Scalar(255, 200, 80) : new Scalar(220, 220, 220);
             Imgproc.rectangle(out, r, c, 2);

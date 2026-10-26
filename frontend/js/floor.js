@@ -110,7 +110,7 @@ function updateCamera(source) {
     return;
   }
   if (cameraTimer) return;
-  $("camera-note").textContent = "Privacy view: people are blurred, staff are labelled by badge number only. Nothing is recorded.";
+  $("camera-note").textContent = "Privacy view: faces are blurred, staff are labelled by badge number only. Nothing is recorded.";
   const img = $("camera");
   const load = () => {
     const next = new Image();

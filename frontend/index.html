@@ -3,54 +3,87 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Turn · Floor</title>
+  <title>Turn · Every table covered</title>
   <link rel="stylesheet" href="css/turn.css">
+  <link rel="stylesheet" href="css/landing.css">
 </head>
-<body>
-<header class="bar">
-  <div>
-    <div class="brand">Turn<span>.</span></div>
-    <div class="tagline">Floor view for the host: which table needs someone, and who should go.</div>
-  </div>
+<body class="landing">
+<nav class="nav">
+  <a href="/" class="brand">Turn<span>.</span></a>
   <div class="spacer"></div>
-  <span id="status" class="status"></span>
-  <span id="source" class="pill">…</span>
-  <button id="restart" hidden>Restart demo</button>
-  <a href="/wait" target="_blank"><button>Guest wait page ↗</button></a>
-  <span id="clock" class="clock num"></span>
+  <a href="#how">How it works</a>
+  <a href="#privacy">Privacy</a>
+  <a href="/wait">Guest wait page</a>
+  <a href="/floor" class="cta small">Open the floor</a>
+</nav>
+
+<header class="hero">
+  <div class="eyebrow">For small restaurants on a busy night</div>
+  <h1>Every table covered.<br><span>From one camera you already own.</span></h1>
+  <p class="lede">Turn watches the floor so the host doesn't have to. It sees which table has been sitting too long without a visit,
+    sends that task to the right server, keeps everyone's load fair, and shows guests at the door a wait time based on
+    what's actually happening.</p>
+  <div class="ctas">
+    <a href="/floor" class="cta">Open the floor</a>
+    <a href="/wait" class="cta ghost">See the guest wait page</a>
+  </div>
+  <div class="hero-card">
+    <div class="mini t-overdue"><b>Table 2</b><span>Overdue · 0:42</span><small>Not greeted · Send Marco</small></div>
+    <div class="mini t-ok"><b>Table 1</b><span>Seated · 12:05</span><small>Priya · last visit 2:10 ago</small></div>
+    <div class="mini t-bussing"><b>Table 3</b><span>Needs bussing</span><small>Guests left 0:30 ago</small></div>
+    <div class="mini t-empty"><b>Wait at the door</b><span class="big-num">8 min</span><small>for a party of 2</small></div>
+  </div>
 </header>
 
-<main class="floor">
-  <div>
-    <h2>Tables</h2>
-    <div id="tables" class="tables"></div>
-
-    <div class="camera">
-      <img id="camera" alt="Privacy-blurred camera view" hidden>
-      <div id="camera-note" class="note"></div>
+<section class="band">
+  <h2 class="section-title">What Turn does that the big systems don't</h2>
+  <div class="cards">
+    <div class="card">
+      <div class="icon">⏱</div>
+      <h3>Guests see the floor too</h3>
+      <p>A live wait page built from the tables the camera sees, not a host's guess. Join from your phone and watch your place in line.</p>
+    </div>
+    <div class="card">
+      <div class="icon">📷</div>
+      <h3>No CCTV system needed</h3>
+      <p>One laptop or phone camera runs it. No point-of-sale swap, no install crew, no monthly hardware.</p>
+    </div>
+    <div class="card">
+      <div class="icon">🪪</div>
+      <h3>Badges, not faces</h3>
+      <p>Staff wear a printed badge, so the camera knows "staff" without knowing who. No face recognition, no per-person speed scores.</p>
+    </div>
+    <div class="card">
+      <div class="icon">✋</div>
+      <h3>Ask without waving</h3>
+      <p>A table card flipped to HELP or CHECK is read by the camera and routed to that table's server.</p>
     </div>
   </div>
+</section>
 
-  <aside>
-    <section>
-      <h2>Needs someone now</h2>
-      <div id="alerts"></div>
-    </section>
-    <section>
-      <h2>Server load</h2>
-      <div id="servers"></div>
-      <div id="suggest" class="suggest"></div>
-    </section>
-    <section>
-      <h2>Waitlist</h2>
-      <div id="waitlist"></div>
-      <div class="suggest" id="avg"></div>
-    </section>
-    <p class="privacy">Turn tracks tables, not faces. People are blurred in the camera view, staff are known only by a badge,
-      and no frame is ever saved or sent anywhere.</p>
-  </aside>
-</main>
-<div id="toast" class="toast"></div>
-<script src="js/floor.js"></script>
+<section class="band" id="how">
+  <h2 class="section-title">How it works</h2>
+  <ol class="steps">
+    <li><b>See.</b> OpenCV 5 finds people at each table (NanoDet) and reads staff badges and table cards (ArUco markers).</li>
+    <li><b>Decide.</b> Each table moves through Seated, Needs bussing and Ready. Not greeted, Check in, Help and Check alerts are raised on timers and go red when overdue.</li>
+    <li><b>Route.</b> The alert goes to the server who owns that table, or to whoever has the lightest load. The next badge visit clears it automatically.</li>
+    <li><b>Tell the guest.</b> The wait page simulates seating the line at the soonest table that fits and shows an honest estimate.</li>
+  </ol>
+</section>
+
+<section class="band" id="privacy">
+  <h2 class="section-title">Privacy by design</h2>
+  <div class="privacy-grid">
+    <p>Faces are blurred in every frame Turn shows.</p>
+    <p>No frame is ever saved or sent anywhere. Turn keeps counts, not footage.</p>
+    <p>Staff are known by a badge number, never by face.</p>
+    <p>Load counts tables, not speed. Turn doesn't score people.</p>
+  </div>
+</section>
+
+<footer class="foot">
+  <div><b>Turn</b>. Built with Java, Spring Boot and OpenCV 5 for Devpost's Build With AI: Basics.</div>
+  <a href="https://github.com/sidharthnair7/Turn">Source on GitHub</a>
+</footer>
 </body>
 </html>

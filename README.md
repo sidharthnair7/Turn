@@ -32,7 +32,7 @@ Restaurant-floor products like Shire (YC Fall 2026) use CCTV to track tables for
   - Guests join from `/wait` and see their place and estimate live.
   - The host presses **Seat**, and Turn picks the smallest free table that fits and blocks double-seating.
 - **Wait estimate:** simulates the host seating everyone ahead of you at the soonest table that fits. It uses each table's time seated and an average dining time learned from finished tables.
-- **Privacy view:** a camera preview with every person blurred and staff labelled only by badge number.
+- **Privacy view:** a camera preview with every face blurred (OpenCV zoo YuNet; if a face isn't found, the top of the person's box is blurred) and staff labelled only by badge number.
 
 ## Run it
 
@@ -48,13 +48,14 @@ Needs Java 25 and Windows. The OpenCV 5 Java bindings come from OpenCV's officia
       ```
       mvnw install:install-file -Dfile=lib/opencv-500.jar -DgroupId=org.opencv -DartifactId=opencv -Dversion=5.0.0 -Dpackaging=jar
       ```
-2. **Get the person-detection model:** NanoDet from the OpenCV model zoo (Apache-2.0). Save it as `lib/models/object_detection_nanodet_2022nov.onnx`:
-   https://huggingface.co/opencv/object_detection_nanodet/resolve/main/object_detection_nanodet_2022nov.onnx
+2. **Get the models** from the OpenCV model zoo (Apache-2.0 / MIT) into `lib/models/`:
+   - people: https://huggingface.co/opencv/object_detection_nanodet/resolve/main/object_detection_nanodet_2022nov.onnx
+   - faces (for the blur): https://huggingface.co/opencv/face_detection_yunet/resolve/main/face_detection_yunet_2023mar.onnx
 3. **Run:**
    ```
    mvnw spring-boot:run
    ```
-   Open http://localhost:8080 for the **Floor** and http://localhost:8080/wait for the **guest page**.
+   Open http://localhost:8080 for the landing page, http://localhost:8080/floor for the **Floor** and http://localhost:8080/wait for the **guest page**.
 
 ### Modes (`turn.source` in `src/main/resources/application.yml`)
 
