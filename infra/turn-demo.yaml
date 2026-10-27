@@ -139,7 +139,39 @@ Resources:
       AlarmActions:
         - !Sub arn:aws:automate:${AWS::Region}:ec2:recover
 
+  # HTTPS in front of the instance. Browsers only allow WebGPU (the landing page's glass background) and other
+  # secure-context features over HTTPS, and it keeps judges' traffic encrypted. Nothing is cached: the floor is live.
+  TurnCdn:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: Turn hosted demo over HTTPS
+        HttpVersion: http2
+        PriceClass: PriceClass_100
+        Origins:
+          - Id: turn-ec2
+            DomainName: !GetAtt TurnInstance.PublicDnsName
+            CustomOriginConfig:
+              OriginProtocolPolicy: http-only
+              HTTPPort: 80
+              OriginReadTimeout: 60
+        DefaultCacheBehavior:
+          TargetOriginId: turn-ec2
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+          CachedMethods: [GET, HEAD]
+          Compress: true
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad          # Managed-CachingDisabled
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac  # Managed-AllViewerExceptHostHeader
+
 Outputs:
+  SecureDemoUrl:
+    Description: The hosted demo over HTTPS (use this one in Devpost)
+    Value: !Sub https://${TurnCdn.DomainName}/floor
+  SecureSiteUrl:
+    Description: The landing page over HTTPS
+    Value: !Sub https://${TurnCdn.DomainName}/
   DemoUrl:
     Description: Turn hosted demo (Floor, Shift flow, guest page). Press Restart demo to replay the shift.
     Value: !Sub http://${TurnInstance.PublicDnsName}/floor

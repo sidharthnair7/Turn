@@ -10,7 +10,7 @@ Turn runs a restaurant floor from one camera. It keeps every table live, routes 
 
 | What | Where |
 |---|---|
-| Hosted demo (EC2) | http://ec2-54-159-33-241.compute-1.amazonaws.com/floor (from the CloudFormation stack). Press **Restart demo** for a scripted two-minute, eight-table shift. Open **Shift flow** from the top bar |
+| Hosted demo (EC2) | https://d287za2gqkxahc.cloudfront.net/floor (from the CloudFormation stack). Press **Restart demo** for a scripted two-minute, eight-table shift. Open **Shift flow** from the top bar |
 | Guest wait page (S3) | https://turn-wait-sid.s3.amazonaws.com/public/index.html. It's fed by Turn running the real dining clip on our machine, so it shows "Not updated for a while" when that machine is off. The hosted demo's own board is at `public/demo/index.html` |
 | Real vision on real footage | README, "Run it", then `-Dspring-boot.run.profiles=dining` |
 | Proof that a badge clears an alert on real footage | §7.3 and `docs/img/badge-read.jpg` |
@@ -138,7 +138,7 @@ Video never leaves the restaurant, by design. AWS does what only the cloud can d
 |---|---|---|
 | Public guest wait page and board | **S3** `public/`: `index.html`, `turn.css`, `theme.js`, `wait.json` | The restaurant's machine sits behind its router, so guests' phones can't reach it. S3 is always up and needs no open port |
 | Private shift history | **S3** `shifts/DATE.json` | The owner keeps a record. A lifecycle rule can expire it, for example after 90 days |
-| Hosted demo | **EC2** (t3.micro, Amazon Linux 2023, Corretto 25), launched by **CloudFormation** `infra/turn-demo.yaml` | One repeatable stack. Turn runs the demo shift under systemd and publishes its own board to `public/demo/` |
+| Hosted demo | **EC2** (t3.micro, Amazon Linux 2023, Corretto 25) behind **CloudFront** (HTTPS), launched by **CloudFormation** `infra/turn-demo.yaml` | One repeatable stack. Turn runs the demo shift under systemd and publishes its own board to `public/demo/` |
 | Least privilege | **IAM** | The restaurant machine's key can only `PutObject` to `public/*` and `shifts/*`. The EC2 role can only read `releases/*` and write `public/demo/*` and `shifts/demo/*` |
 | Access | **Systems Manager Session Manager** | No SSH port and no key pair. The security group opens only port 80 |
 | Recovery | **CloudWatch alarm** on `StatusCheckFailed_System` | EC2 recovers the instance automatically |
