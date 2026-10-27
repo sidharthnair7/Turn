@@ -29,13 +29,25 @@ public class FaceBlurrer {
     }
 
     public void blurFaces(Mat out, List<Rect> people) {
-        Rect bounds = new Rect(0, 0, out.cols(), out.rows());
-        List<Rect> faces = detectFaces(out);
-        for (Rect f : faces) blur(out, clip(grow(f, 0.2), bounds));
+        blurRegions(out, regions(out, people));
+    }
+
+    /** Where to blur in this frame: each face, plus the head area of any person whose face wasn't found. */
+    public List<Rect> regions(Mat frame, List<Rect> people) {
+        Rect bounds = new Rect(0, 0, frame.cols(), frame.rows());
+        List<Rect> faces = detectFaces(frame);
+        List<Rect> out = new ArrayList<>();
+        // Grown generously: the preview reuses these for a few frames while the next detection runs.
+        for (Rect f : faces) out.add(clip(grow(f, 0.35), bounds));
         for (Rect p : people) {
             boolean hasFace = faces.stream().anyMatch(f -> p.contains(new Point(f.x + f.width / 2.0, f.y + f.height / 2.0)));
-            if (!hasFace) blur(out, clip(new Rect(p.x, p.y, p.width, (int) (p.height * HEAD_SHARE)), bounds));
+            if (!hasFace) out.add(clip(grow(new Rect(p.x, p.y, p.width, (int) (p.height * HEAD_SHARE)), 0.1), bounds));
         }
+        return out;
+    }
+
+    public static void blurRegions(Mat out, List<Rect> regions) {
+        for (Rect r : regions) blur(out, r);
     }
 
     private List<Rect> detectFaces(Mat frame) {

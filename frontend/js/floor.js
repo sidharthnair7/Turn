@@ -197,14 +197,13 @@ function updateCamera(source) {
   wrap.classList.remove("demo");
   if (cameraTimer) return;
   $("camera-note").innerHTML = "<b>Privacy view.</b> Faces are blurred, staff are labelled by badge number only. Nothing is recorded.";
+  // A live MJPEG stream at the camera's own frame rate; if it drops, reconnect.
   const img = $("camera");
-  const load = () => {
-    const next = new Image();
-    next.onload = () => { img.src = next.src; img.hidden = false; };
-    next.src = "/camera.jpg?t=" + Date.now();
-  };
-  load();
-  cameraTimer = setInterval(load, 400);
+  const connect = () => { img.src = "/camera.mjpg?t=" + Date.now(); };
+  img.onload = () => { img.hidden = false; };
+  img.onerror = () => setTimeout(connect, 1000);
+  connect();
+  cameraTimer = true;
 }
 
 async function refresh() {

@@ -1,6 +1,9 @@
 spring:
   application:
     name: Turn
+  mvc:
+    async:
+      request-timeout: -1   # the camera stream stays open while the Floor page is open
 
 turn:
   # demo | camera:0 | file:C:/path/to/clip.mp4

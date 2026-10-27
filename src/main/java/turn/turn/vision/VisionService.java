@@ -35,8 +35,16 @@ public class VisionService {
     private final FloorEngine engine;
     private volatile boolean running;
     private volatile byte[] latestJpeg;
+    private volatile long frameNo;
+    /** The latest detections, drawn onto every frame until the next detection replaces them. */
+    private volatile Overlay overlay = new Overlay(List.of(), Map.of(), List.of(), List.of());
+    private final java.util.concurrent.atomic.AtomicBoolean detecting = new java.util.concurrent.atomic.AtomicBoolean();
+
+    private record Overlay(List<Rect> people, Map<Rect, Integer> staffPeople, List<Marker> badges, List<Rect> blur) {
+    }
     private FaceBlurrer faces;
     private Thread worker;
+    private java.util.concurrent.ExecutorService detector;
 
     public VisionService(TurnProperties props, FloorEngine engine) {
         this.props = props;
@@ -45,6 +53,11 @@ public class VisionService {
 
     public byte[] latestJpeg() {
         return latestJpeg;
+    }
+
+    /** Goes up by one for every new preview frame, so a stream knows when to send. */
+    public long frameNo() {
+        return frameNo;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -59,6 +72,7 @@ public class VisionService {
     @PreDestroy
     public void stop() {
         running = false;
+        if (detector != null) detector.shutdownNow();
     }
 
     private void run() {
@@ -77,6 +91,7 @@ public class VisionService {
                 log.warn("Could not open video source {}", src);
                 return;
             }
+            detector = java.util.concurrent.Executors.newSingleThreadExecutor(r -> new Thread(r, "turn-detect"));
             double fps = cap.get(Videoio.CAP_PROP_FPS);
             long frameMs = isFile && fps > 1 ? (long) (1000 / fps) : 0;
             engine.setSourceStatus("Live: " + src);
@@ -94,10 +109,28 @@ public class VisionService {
                     Thread.sleep(500);
                     continue;
                 }
-                if (t0 - lastCheck >= CHECK_EVERY_MS) {
+                // Detection runs on its own thread so the preview keeps the clip's real frame rate.
+                if (t0 - lastCheck >= CHECK_EVERY_MS && detecting.compareAndSet(false, true)) {
                     lastCheck = t0;
-                    analyse(frame, people.detect(frame), markers.detect(frame));
+                    Mat still = frame.clone();
+                    detector.submit(() -> {
+                        try {
+                            List<Rect> found = people.detect(still);
+                            List<Marker> seen = markers.detect(still);
+                            List<Rect> blur = faces.regions(still, found);
+                            Map<Rect, Integer> staffPeople = analyse(found, seen);
+                            overlay = new Overlay(found, staffPeople,
+                                    seen.stream().filter(m -> MarkerDetector.isStaffBadge(m.id())).toList(), blur);
+                        } catch (Exception e) {
+                            log.warn("Detection failed on a frame: {}", e.getMessage());
+                        } finally {
+                            still.release();
+                            detecting.set(false);
+                        }
+                    });
                 }
+                latestJpeg = preview(frame, overlay);
+                frameNo++;
                 if (frameMs > 0) {
                     long spare = frameMs - (System.currentTimeMillis() - t0);
                     if (spare > 0) Thread.sleep(spare);
@@ -112,7 +145,8 @@ public class VisionService {
         }
     }
 
-    void analyse(Mat frame, List<Rect> people, List<Marker> found) {
+    /** Turns one frame's detections into table observations for the engine. Returns which people are staff. */
+    Map<Rect, Integer> analyse(List<Rect> people, List<Marker> found) {
         List<TableConfig> tables = engine.tableConfigs();
         Map<String, Integer> guests = new HashMap<>();
         Map<String, Set<Integer>> staff = new HashMap<>();
@@ -150,7 +184,7 @@ public class VisionService {
                     cards.contains(t.helpMarker()), cards.contains(t.checkMarker())));
         }
         engine.tick(observations, Instant.now());
-        latestJpeg = preview(frame, people, staffPeople, badges);
+        return staffPeople;
     }
 
     private static TableConfig tableAt(List<TableConfig> tables, Point p) {
@@ -164,10 +198,13 @@ public class VisionService {
     }
 
     /** Privacy view: every face blurred, zones coloured by table state, staff labelled by badge only. */
-    private byte[] preview(Mat frame, List<Rect> people, Map<Rect, Integer> staffPeople, List<Marker> badges) {
+    private byte[] preview(Mat frame, Overlay o) {
+        List<Rect> people = o.people();
+        Map<Rect, Integer> staffPeople = o.staffPeople();
+        List<Marker> badges = o.badges();
         Mat out = frame.clone();
         Rect bounds = new Rect(0, 0, out.cols(), out.rows());
-        if (faces != null) faces.blurFaces(out, people);
+        FaceBlurrer.blurRegions(out, o.blur());
         for (Rect p : people) {
             Rect r = intersect(p, bounds);
             if (r.width < 2 || r.height < 2) continue;
@@ -194,6 +231,8 @@ public class VisionService {
             Imgproc.rectangle(out, zone, c, 3);
             Imgproc.putText(out, t.name() == null ? t.id() : t.name(), new Point(t.x() + 6, t.y() + 22), Imgproc.FONT_HERSHEY_SIMPLEX, 0.7, c, 2);
         }
+        // 1280 wide is plenty for the Floor page and keeps encoding fast enough for every frame.
+        if (out.cols() > 1280) Imgproc.resize(out, out, new Size(1280, out.rows() * 1280.0 / out.cols()), 0, 0, Imgproc.INTER_AREA);
         MatOfByte jpg = new MatOfByte();
         Imgcodecs.imencode(".jpg", out, jpg, new MatOfInt(Imgcodecs.IMWRITE_JPEG_QUALITY, 75));
         return jpg.toArray();
