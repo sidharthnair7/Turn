@@ -21,7 +21,12 @@ public class PersonDetector implements PeopleDetector {
     private final float scoreThreshold;
 
     public PersonDetector(String modelPath, double scoreThreshold) {
-        this.net = Dnn.readNet(modelPath);
+        this(modelPath, scoreThreshold, Dnn.ENGINE_AUTO);
+    }
+
+    /** engine: one of OpenCV 5's Dnn.ENGINE_* values (AUTO tries the new graph engine, then falls back). */
+    public PersonDetector(String modelPath, double scoreThreshold, int engine) {
+        this.net = Dnn.readNet(modelPath, "", "", engine);
         this.scoreThreshold = (float) scoreThreshold;
     }
 

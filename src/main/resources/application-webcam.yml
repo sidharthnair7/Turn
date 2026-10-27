@@ -1,0 +1,18 @@
+# Live badge test with your own webcam: one table that covers the whole picture.
+#   mvnw spring-boot:run -Dspring-boot.run.profiles=webcam -Dspring-boot.run.arguments=--server.port=8099
+# Sit in view: the table goes Seated, then Not greeted after 8 s. Hold markers/badge_2.png up on a phone
+# (Marco): the alert clears and Marco owns the table. Hold markers/table1_help.png: Help requested.
+turn:
+  source: camera:0
+  model-path: lib/models/object_detection_yolox_2022nov.onnx
+  person-score: 0.35
+  timing:
+    seat-after: 2
+    leave-after: 5
+    greet-within: 8
+    check-in-every: 30
+    respond-within: 10
+    ready-for: 8
+    avg-dining-min: 45
+  tables:
+    - { number: 1, name: "Webcam table", seats: 2, x: 0, y: 0, w: 1920, h: 1080 }

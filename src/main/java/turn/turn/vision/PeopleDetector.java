@@ -11,6 +11,11 @@ public interface PeopleDetector {
 
     /** Picks the detector from the model file name (turn.model-path). */
     static PeopleDetector forModel(String modelPath, double score) {
-        return modelPath.contains("yolox") ? new YoloxDetector(modelPath, score) : new PersonDetector(modelPath, score);
+        return forModel(modelPath, score, org.opencv.dnn.Dnn.ENGINE_AUTO);
+    }
+
+    /** Same, with an explicit OpenCV 5 dnn engine (Dnn.ENGINE_CLASSIC, ENGINE_NEW, ENGINE_AUTO). */
+    static PeopleDetector forModel(String modelPath, double score, int engine) {
+        return modelPath.contains("yolox") ? new YoloxDetector(modelPath, score, engine) : new PersonDetector(modelPath, score, engine);
     }
 }

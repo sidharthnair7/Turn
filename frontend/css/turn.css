@@ -295,6 +295,7 @@ h2 {
 }
 .tabs { display: flex; gap: 2px; padding: 3px; border-radius: 999px; background: var(--sunken); }
 .tabs a {
+  white-space: nowrap;
   padding: 6px 14px;
   border-radius: 999px;
   font-size: 13.5px;
@@ -570,7 +571,8 @@ h2 {
   .col-side { grid-template-columns: 1fr; }
 }
 @media (max-width: 520px) {
-  .tabs a { padding: 6px 10px; }
+  .tabs a { padding: 6px 9px; font-size: 12.5px; }
+  .nav { padding-left: 14px; gap: 8px; }
   .tabs a span { display: none; }
   #restart { display: none; }
   .tables { grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -843,9 +845,19 @@ h2 {
 }
 .add-toggle:hover { color: var(--fg); border-color: var(--fg); }
 
+/* On a phone the room layout gets too cramped, so the map becomes a tidy wrap of tables in floor order. */
 @media (max-width: 720px) {
-  .map { aspect-ratio: auto; height: 380px; }
-  .mt { transform: translate(-50%, -50%) scale(0.82); }
+  .map {
+    aspect-ratio: auto;
+    min-height: 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 30px 18px;
+    padding: 22px 12px 34px;
+  }
+  .mt { position: relative; left: auto !important; top: auto !important; transform: none; flex: none; }
   .hint { display: none; }
 }
 
@@ -943,6 +955,7 @@ h2 {
 }
 @media (max-width: 560px) {
   .kpis { grid-template-columns: 1fr 1fr; }
+  .kpi .v { font-size: 26px; }
   .signals, .capacity { grid-template-columns: 1fr; }
   .srv { grid-template-columns: 1fr; }
   .srv-l { grid-column: 1; }

@@ -38,7 +38,10 @@ Turn runs in the restaurant. AWS holds one S3 bucket that serves the guest page 
   "Statement": [{
     "Effect": "Allow",
     "Action": "s3:PutObject",
-    "Resource": "arn:aws:s3:::turn-wait-<yourname>/*"
+    "Resource": [
+      "arn:aws:s3:::turn-wait-<yourname>/public/*",
+      "arn:aws:s3:::turn-wait-<yourname>/shifts/*"
+    ]
   }]
 }
 ```
@@ -52,6 +55,8 @@ set AWS_SECRET_ACCESS_KEY=...
 ```
 
 ## 3. Run Turn with the bucket
+
+In PowerShell, use `.\mvnw` and quote each `-D...` argument; the commands below are for cmd.
 
 ```
 mvnw spring-boot:run -Dspring-boot.run.profiles=dining -Dspring-boot.run.arguments="--turn.aws.bucket=turn-wait-<yourname> --server.port=8097"

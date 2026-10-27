@@ -6,8 +6,11 @@ spring:
       request-timeout: -1   # the camera stream stays open while the Floor page is open
 
 turn:
-  # demo | camera:0 | file:C:/path/to/clip.mp4
+  # demo | camera:0 | file:C:/path/to/clip.mp4 | rtsp://user:pass@recorder/stream (any URL OpenCV's FFmpeg can open)
   source: demo
+  # Staff PIN for the Floor, Shift flow, camera and host actions. Empty = open (fine for the public demo).
+  # Set it in a real restaurant, e.g. --turn.staff-pin=4821, so guests on the Wi-Fi only get the wait page.
+  staff-pin: ""
   opencv-dir: lib
   model-path: lib/models/object_detection_nanodet_2022nov.onnx
   person-score: 0.5

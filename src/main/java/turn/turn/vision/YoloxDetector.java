@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Finds people with OpenCV zoo's YOLOX-S (COCO, 640x640). Slower than NanoDet (about 180 ms a frame on a laptop)
+ * Finds people with OpenCV zoo's YOLOX-S (COCO, 640x640). Slower than NanoDet (about 135 ms a frame on a Ryzen 7 3700X CPU with OpenCV 5's new dnn engine)
  * but it sees seated diners across a whole dining room, which NanoDet missed in testing.
  * Pre/post-processing ported from opencv_zoo/models/object_detection_yolox/yolox.py.
  */
@@ -22,7 +22,12 @@ public class YoloxDetector implements PeopleDetector {
     private final float scoreThreshold;
 
     public YoloxDetector(String modelPath, double scoreThreshold) {
-        this.net = Dnn.readNet(modelPath);
+        this(modelPath, scoreThreshold, Dnn.ENGINE_AUTO);
+    }
+
+    /** engine: one of OpenCV 5's Dnn.ENGINE_* values (AUTO tries the new graph engine, then falls back). */
+    public YoloxDetector(String modelPath, double scoreThreshold, int engine) {
+        this.net = Dnn.readNet(modelPath, "", "", engine);
         this.scoreThreshold = (float) scoreThreshold;
     }
 

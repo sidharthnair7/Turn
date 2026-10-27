@@ -1,0 +1,7 @@
+# End-to-end badge test on real footage: the dining clip with a staff badge and a HELP card drawn in at Booth 2.
+# Build the clip first (see README, "Test and evaluate"), then:
+#   mvnw spring-boot:run -Dspring-boot.run.profiles=dining,badgetest
+# Expected at Booth 2: Seated, Not greeted at about 14 s, cleared by Marco's badge at 22 s, Help requested at 32 s,
+# cleared by the badge again at 42 s.
+turn:
+  source: file:lib/samples/badge-test.avi

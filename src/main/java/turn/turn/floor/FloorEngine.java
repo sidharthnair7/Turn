@@ -102,7 +102,10 @@ public class FloorEngine {
                 if (t.absentSince != null && secondsSince(t.absentSince, now) >= timing.leaveAfter()) leave(t, now);
             }
             case BUSSING -> {
-                if (!obs.staffBadges().isEmpty() && obs.guests() == 0) {
+                // New guests sat at it before anyone bussed it: it's in use again.
+                if (t.presentSince != null && secondsSince(t.presentSince, now) >= timing.seatAfter()) {
+                    seat(t, now);
+                } else if (!obs.staffBadges().isEmpty() && obs.guests() == 0) {
                     stats.turned(secondsSince(t.stateSince, now));
                     answer(t, EnumSet.of(AlertType.BUSSING), now);
                     t.moveTo(TableState.READY, now);

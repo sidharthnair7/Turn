@@ -37,8 +37,8 @@ public class VisionService {
     private volatile byte[] latestJpeg;
     private volatile long frameNo;
     private volatile long lastDetectMs = -1;
-    /** The latest detections, drawn onto every frame until the next detection replaces them. */
-    private volatile Overlay overlay = new Overlay(List.of(), Map.of(), List.of(), List.of());
+    /** The latest detections, drawn onto every frame until the next detection replaces them. Null until the first. */
+    private volatile Overlay overlay;
     private final java.util.concurrent.atomic.AtomicBoolean detecting = new java.util.concurrent.atomic.AtomicBoolean();
 
     private record Overlay(List<Rect> people, Map<Rect, Integer> staffPeople, List<Marker> badges, List<Rect> blur) {
@@ -90,8 +90,11 @@ public class VisionService {
             faces = new FaceBlurrer(java.nio.file.Path.of(props.modelPath()).resolveSibling("face_detection_yunet_2023mar.onnx").toString());
             String src = props.source();
             boolean isFile = src.startsWith("file:");
+            // camera:N is a local webcam; file:path is a clip (looped); anything else, like rtsp://user:pass@cctv/stream,
+            // goes straight to OpenCV's FFmpeg backend, so an existing CCTV recorder's stream works too.
             VideoCapture cap = isFile ? new VideoCapture(src.substring(5))
-                    : new VideoCapture(Integer.parseInt(src.substring(src.indexOf(':') + 1)));
+                    : src.startsWith("camera:") ? new VideoCapture(Integer.parseInt(src.substring(7)))
+                    : new VideoCapture(src);
             if (!cap.isOpened()) {
                 engine.setSourceStatus("Camera not available (" + src + ")");
                 log.warn("Could not open video source {}", src);
@@ -155,7 +158,21 @@ public class VisionService {
 
     /** Turns one frame's detections into table observations for the engine. Returns which people are staff. */
     Map<Rect, Integer> analyse(List<Rect> people, List<Marker> found) {
-        List<TableConfig> tables = engine.tableConfigs();
+        Frame frame = observe(engine.tableConfigs(), people, found);
+        engine.tick(frame.observations(), Instant.now());
+        return frame.staffPeople();
+    }
+
+    /** One frame, read: what each table looks like, and which person boxes are staff (badge number). */
+    record Frame(List<TableObservation> observations, Map<Rect, Integer> staffPeople) {
+    }
+
+    /**
+     * Pure logic, no OpenCV calls: people boxes and markers in, one observation per table out. A person counts for
+     * the table whose zone holds their box centre. A badge marks the one person wearing it as staff. A badge
+     * inside a zone counts as a visit even if the detector missed its wearer. Cards count anywhere in view.
+     */
+    static Frame observe(List<TableConfig> tables, List<Rect> people, List<Marker> found) {
         Map<String, Integer> guests = new HashMap<>();
         Map<String, Set<Integer>> staff = new HashMap<>();
         Set<Integer> cards = new HashSet<>();
@@ -167,10 +184,21 @@ public class VisionService {
         List<Marker> badges = found.stream().filter(m -> MarkerDetector.isStaffBadge(m.id())).toList();
         found.stream().filter(m -> !MarkerDetector.isStaffBadge(m.id())).forEach(m -> cards.add(m.id()));
 
+        // Each badge marks one person as staff: the person whose box (grown 10%) holds the badge and whose centre is
+        // nearest to it. A server leaning over a seated guest must not turn the guest into staff.
         Map<Rect, Integer> staffPeople = new HashMap<>();
-        for (Rect p : people) {
-            Rect grown = grow(p, 0.1);
-            for (Marker b : badges) if (grown.contains(b.centre())) staffPeople.put(p, b.id());
+        for (Marker b : badges) {
+            Rect wearer = null;
+            double best = Double.MAX_VALUE;
+            for (Rect p : people) {
+                if (staffPeople.containsKey(p) || !grow(p, 0.1).contains(b.centre())) continue;
+                double d = Math.hypot(p.x + p.width / 2.0 - b.centre().x, p.y + p.height / 2.0 - b.centre().y);
+                if (d < best) {
+                    best = d;
+                    wearer = p;
+                }
+            }
+            if (wearer != null) staffPeople.put(wearer, b.id());
         }
 
         for (Rect p : people) {
@@ -191,8 +219,7 @@ public class VisionService {
             observations.add(new TableObservation(t.id(), guests.get(t.id()), staff.get(t.id()),
                     cards.contains(t.helpMarker()), cards.contains(t.checkMarker())));
         }
-        engine.tick(observations, Instant.now());
-        return staffPeople;
+        return new Frame(observations, staffPeople);
     }
 
     private static TableConfig tableAt(List<TableConfig> tables, Point p) {
@@ -207,6 +234,7 @@ public class VisionService {
 
     /** Privacy view: every face blurred, zones coloured by table state, staff labelled by badge only. */
     private byte[] preview(Mat frame, Overlay o) {
+        if (o == null) return blurredWhole(frame);
         List<Rect> people = o.people();
         Map<Rect, Integer> staffPeople = o.staffPeople();
         List<Marker> badges = o.badges();
@@ -241,6 +269,18 @@ public class VisionService {
         }
         // 1280 wide is plenty for the Floor page and keeps encoding fast enough for every frame.
         if (out.cols() > 1280) Imgproc.resize(out, out, new Size(1280, out.rows() * 1280.0 / out.cols()), 0, 0, Imgproc.INTER_AREA);
+        MatOfByte jpg = new MatOfByte();
+        Imgcodecs.imencode(".jpg", out, jpg, new MatOfInt(Imgcodecs.IMWRITE_JPEG_QUALITY, 75));
+        return jpg.toArray();
+    }
+
+    /** Until the first detection finishes, nobody's face has been found yet, so the whole frame is blurred. */
+    private static byte[] blurredWhole(Mat frame) {
+        Mat out = new Mat();
+        Imgproc.resize(frame, out, new Size(frame.cols() / 8.0, frame.rows() / 8.0), 0, 0, Imgproc.INTER_AREA);
+        Imgproc.GaussianBlur(out, out, new Size(9, 9), 0);
+        Imgproc.resize(out, out, new Size(Math.min(1280, frame.cols()), Math.min(1280, frame.cols()) * frame.rows() / (double) frame.cols()));
+        Imgproc.putText(out, "Starting detection...", new Point(24, 48), Imgproc.FONT_HERSHEY_SIMPLEX, 1.1, new Scalar(255, 255, 255), 2);
         MatOfByte jpg = new MatOfByte();
         Imgcodecs.imencode(".jpg", out, jpg, new MatOfInt(Imgcodecs.IMWRITE_JPEG_QUALITY, 75));
         return jpg.toArray();

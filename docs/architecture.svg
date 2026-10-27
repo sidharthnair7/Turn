@@ -7,7 +7,7 @@
 
   <!-- Restaurant -->
   <rect x="20" y="56" width="700" height="544" rx="14" fill="#f8fafc" stroke="#cbd5e1"/>
-  <text x="36" y="80" font-weight="700" fill="#334155">In the restaurant: one laptop, Java 25 + Spring Boot</text>
+  <text x="36" y="80" font-weight="700" fill="#334155">In the restaurant: one PC, Java 25 + Spring Boot</text>
 
   <rect x="40" y="100" width="140" height="70" rx="10" fill="#fff" stroke="#94a3b8"/>
   <text x="110" y="128" text-anchor="middle" font-weight="600">Camera</text>
@@ -75,9 +75,9 @@
   <text x="806" y="474" font-size="13">CloudFormation: infra/turn-demo.yaml</text>
   <text x="806" y="496" font-size="13">Turn in demo mode, systemd, port 80</text>
   <text x="806" y="518" font-size="13">IAM role: read jar, write demo board</text>
-  <text x="806" y="540" fill="#64748b" font-size="12">no SSH, Session Manager only</text>
+  <text x="806" y="540" fill="#64748b" font-size="12">no SSH; Session Manager; recovery alarm</text>
 
-  <text x="806" y="584" fill="#64748b" font-size="12">IAM user for the laptop: PutObject only</text>
+  <text x="806" y="584" fill="#64748b" font-size="12">Restaurant PC key: PutObject on public/, shifts/ only</text>
 
   <!-- arrows -->
   <path d="M180 135 H218" stroke="#374151" stroke-width="2" marker-end="url(#a)"/>

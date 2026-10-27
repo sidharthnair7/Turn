@@ -28,7 +28,9 @@ public class HealthController {
         var snap = engine.snapshot();
         Map<String, Object> out = new LinkedHashMap<>();
         boolean cloudOk = !cloud.enabled() || cloud.lastError() == null;
-        out.put("status", cloudOk ? "ok" : "degraded");
+        String src = String.valueOf(snap.sourceStatus());
+        boolean visionOk = !(src.startsWith("Vision error") || src.startsWith("Camera"));
+        out.put("status", cloudOk && visionOk ? "ok" : "degraded");
         out.put("source", snap.source());
         out.put("sourceStatus", snap.sourceStatus());
         out.put("uptimeSec", ManagementFactory.getRuntimeMXBean().getUptime() / 1000);

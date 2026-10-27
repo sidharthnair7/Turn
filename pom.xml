@@ -83,6 +83,10 @@
             <resource>
                 <directory>frontend</directory>
                 <targetPath>static</targetPath>
+                <!-- landing/ is the React source of the landing page (built into frontend/index.html + assets/) -->
+                <excludes>
+                    <exclude>landing/**</exclude>
+                </excludes>
             </resource>
         </resources>
         <plugins>

@@ -12,7 +12,7 @@ public final class NativeLoader {
 
     public static synchronized void load(String opencvDir) {
         if (loaded) return;
-        Path dll = Path.of(opencvDir, "opencv_java500.dll").toAbsolutePath();
+        Path dll = Path.of(opencvDir, System.mapLibraryName("opencv_java500")).toAbsolutePath();
         if (!Files.exists(dll)) {
             throw new IllegalStateException("OpenCV native library not found at " + dll
                     + ". Copy opencv_java500.dll from OpenCV 5.0.0's build/java/x64 folder (see README).");

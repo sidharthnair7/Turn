@@ -104,6 +104,16 @@ class FloorEngineTest {
     }
 
     @Test
+    void guestsWhoSitAtADirtyTableMakeItSeatedAgain() {
+        see(3, TableObservation.of("T1", 2, Set.of(1)));
+        see(6, TableObservation.of("T1", 0, Set.of()));
+        assertEquals("BUSSING", table("T1").state());
+        see(3, TableObservation.of("T1", 2, Set.of()));
+        assertEquals("SEATED", table("T1").state(), "new guests sat down before anyone bussed it");
+        assertTrue(engine.snapshot().alerts().stream().noneMatch(a -> a.type().equals("BUSSING")));
+    }
+
+    @Test
     void doubleSeatingIsBlocked() {
         see(3, TableObservation.of("T2", 4, Set.of()));
         Party p = engine.join("Lena", 4);

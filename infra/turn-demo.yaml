@@ -122,12 +122,29 @@ Resources:
           curl -fs http://localhost/api/health
           /opt/aws/bin/cfn-signal -e 0 --stack ${AWS::StackName} --resource TurnInstance --region ${AWS::Region}
 
+  # If the instance stops answering EC2's status checks, the alarm goes to ALARM and EC2 recovers the instance.
+  TurnStatusAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Turn demo instance failed its EC2 status checks
+      Namespace: AWS/EC2
+      MetricName: StatusCheckFailed_System
+      Dimensions:
+        - { Name: InstanceId, Value: !Ref TurnInstance }
+      Statistic: Maximum
+      Period: 60
+      EvaluationPeriods: 2
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Sub arn:aws:automate:${AWS::Region}:ec2:recover
+
 Outputs:
   DemoUrl:
     Description: Turn hosted demo (Floor, Shift flow, guest page). Press Restart demo to replay the shift.
     Value: !Sub http://${TurnInstance.PublicDnsName}/floor
   HealthUrl:
-    Description: Health check (source, uptime, last AWS sync)
+    Description: Health check (source, uptime, last AWS sync). Logs - Session Manager, then journalctl -u turn
     Value: !Sub http://${TurnInstance.PublicDnsName}/api/health
   DemoGuestPage:
     Description: The demo's public guest wait page on S3

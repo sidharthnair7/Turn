@@ -45,3 +45,6 @@ clips/
 .env
 .env.*
 !.env.example
+
+### Front end build tooling (landing page source in frontend/landing) ###
+node_modules/
