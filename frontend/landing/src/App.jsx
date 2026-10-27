@@ -101,6 +101,12 @@ function useNarrow() {
   return narrow;
 }
 
+// Weaker laptops (few cores or little memory) render the same glass background with fewer shards and a lower
+// pixel ratio, so it stays smooth. Nothing is removed; it just does less work.
+const LITE = (navigator.hardwareConcurrency || 8) <= 4 || (navigator.deviceMemory || 8) <= 4;
+const DPR = LITE ? 1 : 1.5;
+const fewer = (n) => (LITE ? Math.round(n * 0.6) : n);
+
 export default function App() {
   const root = useRef(null);
   const narrow = useNarrow();
@@ -289,7 +295,8 @@ export default function App() {
               placement={narrow ? 'full' : 'right'}
               material="glass"
               markers="plus"
-              count={narrow ? 700 : 1200}
+              count={fewer(narrow ? 700 : 1200)}
+              dpr={DPR}
               depthOfField={0.7}
               vignette={0.25}
               grain={0.04}
@@ -400,7 +407,8 @@ export default function App() {
               placement="left"
               material="glass"
               markers="dots"
-              count={narrow ? 450 : 800}
+              count={fewer(narrow ? 450 : 800)}
+              dpr={DPR}
               depthOfField={0.8}
               vignette={0.45}
               glow={0.4}
