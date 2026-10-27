@@ -1,5 +1,6 @@
 package turn.turn.floor;
 
+import java.time.Instant;
 import java.util.*;
 
 /**
@@ -7,6 +8,10 @@ import java.util.*;
  * Deliberately per table and per alert type, never per person: Turn doesn't score staff.
  */
 class ShiftStats {
+    private final long bucketSec;
+    private final Instant start;
+    /** Bucket start (epoch ms) to {covers, parties seated, parties finished}. */
+    private final TreeMap<Long, int[]> timeline = new TreeMap<>();
     private int covers;
     private int seatings;
     private final List<Double> greetSecs = new ArrayList<>();
@@ -17,9 +22,54 @@ class ShiftStats {
     private int overdueAnswered;
     private final Map<AlertType, List<Double>> responses = new EnumMap<>(AlertType.class);
 
-    void seated(int guests) {
+    ShiftStats(long bucketSec, Instant start) {
+        this.bucketSec = bucketSec;
+        this.start = start;
+    }
+
+    void seated(int guests, Instant now) {
         seatings++;
         covers += guests;
+        int[] b = bucket(now);
+        b[0] += guests;
+        b[1]++;
+    }
+
+    void finished(Instant now) {
+        bucket(now)[2]++;
+    }
+
+    private int[] bucket(Instant now) {
+        long size = bucketSec * 1000;
+        return timeline.computeIfAbsent(now.toEpochMilli() / size * size, k -> new int[3]);
+    }
+
+    /** Every bucket from the start of the shift to now, empty ones included, so the timeline has no gaps. */
+    List<FloorSnapshot.Bucket> timeline(Instant now) {
+        long size = bucketSec * 1000;
+        List<FloorSnapshot.Bucket> out = new ArrayList<>();
+        for (long b = start.toEpochMilli() / size * size; b <= now.toEpochMilli(); b += size) {
+            int[] v = timeline.getOrDefault(b, new int[3]);
+            out.add(new FloorSnapshot.Bucket(b, v[0], v[1], v[2]));
+        }
+        return out.size() > 24 ? out.subList(out.size() - 24, out.size()) : out;
+    }
+
+    Long peakStart() {
+        return timeline.entrySet().stream().filter(e -> e.getValue()[0] > 0)
+                .max(Comparator.comparingInt(e -> e.getValue()[0])).map(Map.Entry::getKey).orElse(null);
+    }
+
+    long bucketSec() {
+        return bucketSec;
+    }
+
+    Instant start() {
+        return start;
+    }
+
+    int turned() {
+        return turnSecs.size();
     }
 
     void greeted(String table, double secs) {

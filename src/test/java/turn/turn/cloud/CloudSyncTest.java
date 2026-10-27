@@ -19,10 +19,10 @@ class CloudSyncTest {
     void publicBoardHasEstimatesAndCountsButNoGuestNames() {
         TurnProperties props = new TurnProperties("demo", "lib", "model.onnx", 0.5, T, T,
                 List.of(new ServerConfig(1, "Priya")),
-                List.of(new TableConfig(1, "Table 1", 2, 0, 0, 10, 10), new TableConfig(2, "Table 2", 4, 20, 0, 10, 10)));
+                List.of(new TableConfig(1, "Table 1", 2, 0, 0, 10, 10), new TableConfig(2, "Table 2", 4, 20, 0, 10, 10)), 30.0);
         FloorEngine engine = new FloorEngine(props);
         engine.join("Sid", 2);
-        CloudSync sync = new CloudSync(new AwsProperties("", "us-east-1", 10), props, engine);
+        CloudSync sync = new CloudSync(new AwsProperties("", "us-east-1", 10, null), props, engine);
 
         Map<String, Object> board = sync.waitBoard(engine.snapshot());
 

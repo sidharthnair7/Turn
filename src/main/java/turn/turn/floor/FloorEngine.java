@@ -30,10 +30,11 @@ public class FloorEngine {
     private final Map<Integer, String> serverNames = new LinkedHashMap<>();
     private final List<Alert> alerts = new ArrayList<>();
     private final List<Party> waitlist = new ArrayList<>();
+    private final List<Reservation> reservations = new ArrayList<>();
     private final AtomicLong ids = new AtomicLong();
     private double avgDiningMin;
     private int completedSeatings;
-    private ShiftStats stats = new ShiftStats();
+    private ShiftStats stats;
     private String sourceStatus = "starting";
 
     @Autowired
@@ -56,9 +57,11 @@ public class FloorEngine {
         for (ServerConfig sc : props.servers()) serverNames.put(sc.badge(), sc.name());
         alerts.clear();
         waitlist.clear();
+        reservations.clear();
         avgDiningMin = timing.avgDiningMin();
         completedSeatings = 0;
-        stats = new ShiftStats();
+        // Hourly buckets for a real shift; the two-minute demo uses 20 s buckets so its timeline has shape.
+        stats = new ShiftStats(props.isDemo() ? 20 : 3600, now);
     }
 
     public synchronized void setSourceStatus(String status) {
@@ -131,14 +134,16 @@ public class FloorEngine {
         t.partyName = t.reservedFor != null ? t.reservedFor.name() + " (" + t.reservedFor.size() + ")" : null;
         t.reservedFor = null;
         t.reservedAt = null;
+        t.blocked = false; // people sat there anyway; the camera wins
         clearAlerts(t, EnumSet.allOf(AlertType.class));
-        stats.seated(t.guests);
+        stats.seated(t.guests, now);
     }
 
     private void leave(Table t, Instant now) {
         double minutes = secondsSince(t.seatedAt, now) / 60.0;
         avgDiningMin = (avgDiningMin * completedSeatings + minutes) / (completedSeatings + 1);
         completedSeatings++;
+        stats.finished(now);
         clearAlerts(t, EnumSet.allOf(AlertType.class));
         t.moveTo(TableState.BUSSING, now);
         t.partyName = null;
@@ -181,12 +186,64 @@ public class FloorEngine {
     // ---------------------------------------------------------------- host and guest actions
 
     public synchronized Party join(String name, int size) {
-        if (size < 1 || size > 20) throw new IllegalArgumentException("Party size must be between 1 and 20.");
-        String clean = name == null || name.isBlank() ? "Guest" : name.strip();
-        if (clean.length() > 30) clean = clean.substring(0, 30);
-        Party p = new Party(UUID.randomUUID().toString().substring(0, 8), clean, size, clock.instant());
+        return join(name, size, null);
+    }
+
+    /** A guest joining from their phone, or a walk-in the host adds. The note is optional ("birthday"). */
+    public synchronized Party join(String name, int size, String note) {
+        checkSize(size);
+        Party p = new Party(newId(), clean(name, "Guest", 30), size, clock.instant(), clean(note, null, 40));
         waitlist.add(p);
         return p;
+    }
+
+    public synchronized Reservation reserve(String name, int size, Instant at, String note) {
+        checkSize(size);
+        Reservation r = new Reservation(newId(), clean(name, "Guest", 30), size, at, clean(note, null, 40));
+        reservations.add(r);
+        reservations.sort(Comparator.comparing(Reservation::at));
+        return r;
+    }
+
+    public synchronized void cancelReservation(String id) {
+        reservations.removeIf(r -> r.id().equals(id));
+    }
+
+    /**
+     * A booked party is at the door. They go to the front of the waitlist, and if a table that fits is free
+     * they're seated straight away. Returns the table name, or null if they have to wait for one.
+     */
+    public synchronized String arrive(String reservationId) {
+        Reservation r = reservations.stream().filter(x -> x.id().equals(reservationId)).findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("That reservation is gone."));
+        reservations.remove(r);
+        Party p = new Party(r.id(), r.name(), r.size(), clock.instant(), r.note() == null ? "Reservation" : "Reservation · " + r.note());
+        waitlist.add(0, p);
+        return bestFreeTable(r.size()).isPresent() ? seatParty(p.id(), null) : null;
+    }
+
+    /** Host takes a free table out of rotation (broken, held, closed section), or puts it back. */
+    public synchronized boolean toggleBlock(String tableId) {
+        Table t = tables.get(tableId);
+        if (t == null) throw new IllegalArgumentException("Unknown table " + tableId + ".");
+        if (!t.blocked && (!t.state.isFree() || t.reservedFor != null))
+            throw new IllegalStateException(t.config.name() + " has guests. Only a free table can be blocked.");
+        t.blocked = !t.blocked;
+        return t.blocked;
+    }
+
+    private static void checkSize(int size) {
+        if (size < 1 || size > 20) throw new IllegalArgumentException("Party size must be between 1 and 20.");
+    }
+
+    private static String clean(String s, String fallback, int max) {
+        if (s == null || s.isBlank()) return fallback;
+        String c = s.strip();
+        return c.length() > max ? c.substring(0, max) : c;
+    }
+
+    private static String newId() {
+        return UUID.randomUUID().toString().substring(0, 8);
     }
 
     public synchronized void leaveWaitlist(String partyId) {
@@ -204,6 +261,7 @@ public class FloorEngine {
         } else {
             table = tables.get(tableId);
             if (table == null) throw new IllegalArgumentException("Unknown table " + tableId + ".");
+            if (table.blocked) throw new IllegalStateException(table.config.name() + " is blocked. Unblock it first.");
             if (!table.state.isFree() || table.reservedFor != null)
                 throw new IllegalStateException(table.config.name() + " is occupied. Double-seating blocked.");
             if (table.config.seats() < party.size())
@@ -217,7 +275,7 @@ public class FloorEngine {
 
     private Optional<Table> bestFreeTable(int size) {
         return tables.values().stream()
-                .filter(t -> t.state.isFree() && t.reservedFor == null && t.config.seats() >= size)
+                .filter(t -> t.state.isFree() && t.reservedFor == null && !t.blocked && fits(t.config.seats(), size))
                 .min(Comparator.comparingInt(t -> t.config.seats()));
     }
 
@@ -239,14 +297,16 @@ public class FloorEngine {
 
         List<FloorSnapshot.TableView> tableViews = new ArrayList<>();
         for (Table t : tables.values()) {
+            TableConfig c = t.config;
             tableViews.add(new FloorSnapshot.TableView(
-                    t.id(), t.config.number(), t.config.name(), t.config.seats(), t.state.name(), t.guests,
+                    t.id(), c.number(), c.name(), c.seats(), t.state.name(), t.guests,
                     t.state == TableState.SEATED ? (long) secondsSince(t.seatedAt, now) : null,
                     t.state == TableState.SEATED && t.lastVisitAt != null ? (long) secondsSince(t.lastVisitAt, now) : null,
-                    t.serverBadge == null ? null : serverNames.getOrDefault(t.serverBadge, "Badge " + t.serverBadge),
+                    serverName(t.serverBadge),
                     t.partyName,
                     t.reservedFor == null ? null : t.reservedFor.name() + " (" + t.reservedFor.size() + ")",
-                    t.helpVisible, t.checkVisible, tone(t, now)));
+                    t.helpVisible, t.checkVisible, tone(t, now),
+                    t.blocked, (long) secondsSince(t.stateSince, now), c.x(), c.y(), c.w(), c.h()));
         }
 
         List<FloorSnapshot.AlertView> alertViews = alerts.stream()
@@ -254,7 +314,7 @@ public class FloorEngine {
                     Table t = tables.get(a.tableId);
                     long age = (long) secondsSince(a.raisedAt, now);
                     boolean overdue = age >= overdueAfter(a.type);
-                    String owner = t.serverBadge == null ? null : serverNames.getOrDefault(t.serverBadge, "Badge " + t.serverBadge);
+                    String owner = serverName(t.serverBadge);
                     return new FloorSnapshot.AlertView(a.id, a.tableId, t.config.name(), a.type.name(), a.type.label,
                             age, overdue, owner != null ? owner : suggestedName, owner == null);
                 })
@@ -263,19 +323,150 @@ public class FloorEngine {
                 .toList();
 
         List<FloorSnapshot.ServerView> serverViews = serverNames.entrySet().stream()
-                .map(e -> new FloorSnapshot.ServerView(e.getKey(), e.getValue(), load.get(e.getKey()), owned.get(e.getKey())))
+                .map(e -> new FloorSnapshot.ServerView(e.getKey(), e.getValue(), load.get(e.getKey()), owned.get(e.getKey()),
+                        e.getKey().equals(suggested)))
                 .toList();
 
+        // Suggested tables are handed out in list order, so two parties are never offered the same table.
+        Set<String> offered = new HashSet<>();
         List<FloorSnapshot.PartyView> partyViews = new ArrayList<>();
         for (int i = 0; i < waitlist.size(); i++) {
             Party p = waitlist.get(i);
+            Optional<Table> fit = tables.values().stream()
+                    .filter(t -> t.state.isFree() && t.reservedFor == null && !t.blocked && fits(t.config.seats(), p.size())
+                            && !offered.contains(t.id()))
+                    .min(Comparator.comparingInt(t -> t.config.seats()));
+            fit.ifPresent(t -> offered.add(t.id()));
             partyViews.add(new FloorSnapshot.PartyView(p.id(), p.name(), p.size(), i + 1,
-                    (long) secondsSince(p.joinedAt(), now), estimateMinutes(waitlist.subList(0, i), p.size(), now)));
+                    (long) secondsSince(p.joinedAt(), now), estimateMinutes(waitlist.subList(0, i), p.size(), now),
+                    p.note(), fit.map(t -> t.config.name()).orElse(null), fit.isPresent() ? suggestedName : null));
         }
 
+        List<FloorSnapshot.ReservationView> reservationViews = reservations.stream()
+                .map(r -> new FloorSnapshot.ReservationView(r.id(), r.name(), r.size(), r.at().toEpochMilli(),
+                        Duration.between(now, r.at()).toSeconds(), r.note()))
+                .toList();
+
         return new FloorSnapshot(props.isDemo() ? "DEMO" : "CAMERA", sourceStatus, now.toEpochMilli(), tableViews,
-                alertViews, serverViews, suggestedName, partyViews, round1(avgDiningMin), completedSeatings,
-                stats.view(timing.greetWithin(), (int) alertViews.stream().filter(FloorSnapshot.AlertView::overdue).count()));
+                alertViews, serverViews, suggestedName, partyViews, reservationViews, counts(), round1(avgDiningMin),
+                completedSeatings, stats.view(timing.greetWithin(), (int) alertViews.stream().filter(FloorSnapshot.AlertView::overdue).count()));
+    }
+
+    private FloorSnapshot.Counts counts() {
+        int open = 0, seated = 0, dirty = 0, blocked = 0;
+        for (Table t : tables.values()) {
+            if (t.blocked) blocked++;
+            else if (t.state == TableState.SEATED) seated++;
+            else if (t.state == TableState.BUSSING) dirty++;
+            else if (t.reservedFor == null) open++;
+        }
+        return new FloorSnapshot.Counts(open, seated, dirty, blocked);
+    }
+
+    private String serverName(Integer badge) {
+        return badge == null ? null : serverNames.getOrDefault(badge, "Badge " + badge);
+    }
+
+    /**
+     * The owner's view of the shift: totals, a timeline, and the next best actions worked out from the live floor.
+     * Everything here is per table, per party or per alert type. Nothing ranks a person.
+     */
+    public synchronized FloorSnapshot.Flow flow() {
+        Instant now = clock.instant();
+        FloorSnapshot snap = snapshot();
+
+        // Capacity: seats stuck behind bussing, guests waiting, and tables about to open.
+        int seatsToTurn = 0, tablesToTurn = 0, openingSoon = 0;
+        Integer nextOpen = null;
+        String nextOpenTable = null;
+        for (Table t : tables.values()) {
+            if (t.state == TableState.BUSSING) {
+                seatsToTurn += t.config.seats();
+                tablesToTurn++;
+            } else if (t.state == TableState.SEATED) {
+                double left = Math.max(0, avgDiningMin - secondsSince(t.seatedAt, now) / 60.0);
+                if (left <= avgDiningMin / 3) openingSoon++;
+                int mins = (int) Math.ceil(Math.max(MIN_REMAINING_MIN, left) + TURN_TABLE_MIN);
+                if (nextOpen == null || mins < nextOpen) {
+                    nextOpen = mins;
+                    nextOpenTable = t.config.name();
+                }
+            }
+        }
+        int coversWaiting = waitlist.stream().mapToInt(Party::size).sum();
+        double check = props.check();
+        var capacity = new FloorSnapshot.Capacity(seatsToTurn, tablesToTurn, coversWaiting, openingSoon, nextOpen,
+                nextOpenTable, seatsToTurn * check, coversWaiting * check);
+
+        List<FloorSnapshot.Action> actions = new ArrayList<>();
+        for (FloorSnapshot.AlertView a : snap.alerts()) {
+            if (!a.overdue() || actions.size() >= 2) continue;
+            actions.add(new FloorSnapshot.Action("overdue", "Send " + (a.routedTo() == null ? "someone" : a.routedTo()) + " to " + a.tableName(),
+                    a.label() + " for " + ShiftStats.time(a.ageSec()) + ". It's overdue."));
+        }
+        if (!snap.waitlist().isEmpty()) {
+            FloorSnapshot.PartyView first = snap.waitlist().get(0);
+            if (first.suggestedTable() != null) {
+                actions.add(new FloorSnapshot.Action("seat", "Seat " + first.name() + " at " + first.suggestedTable(),
+                        "Party of " + first.size() + ", waiting " + ShiftStats.time(first.waitedSec()) + "."
+                                + (snap.suggestedServer() == null ? "" : " " + snap.suggestedServer() + " has the lightest section.")));
+            } else if (first.etaMin() != null) {
+                actions.add(new FloorSnapshot.Action("quote", "Quote " + first.name() + " about " + first.etaMin() + " min",
+                        "No free table fits a party of " + first.size() + " yet."
+                                + (nextOpenTable == null ? "" : " " + nextOpenTable + " should open first.")));
+            }
+        }
+        tables.values().stream().filter(t -> t.state == TableState.BUSSING)
+                .sorted(Comparator.comparing((Table t) -> t.stateSince))
+                .limit(2)
+                .forEach(t -> actions.add(new FloorSnapshot.Action("bus", "Bus " + t.config.name(),
+                        t.config.seats() + " seats waiting to turn for " + ShiftStats.time(secondsSince(t.stateSince, now)) + ".")));
+        if (!waitlist.isEmpty()) {
+            int parties = waitlist.size();
+            tables.values().stream().filter(t -> t.blocked).findFirst().ifPresent(t -> actions.add(new FloorSnapshot.Action("blocked",
+                    "Unblock " + t.config.name() + "?", t.config.seats() + " seats are out of rotation while "
+                            + parties + (parties == 1 ? " party waits." : " parties wait."))));
+        }
+        if (actions.isEmpty()) actions.add(new FloorSnapshot.Action("calm", "Floor is covered", "No table is waiting on anyone right now."));
+
+        // Live signals: only the tables worth a glance, not a copy of the whole floor.
+        List<FloorSnapshot.Signal> signals = new ArrayList<>();
+        for (FloorSnapshot.TableView t : snap.tables()) {
+            String title = null, detail = null;
+            switch ("BUSSING".equals(t.state()) ? "bussing" : t.tone()) {
+                case "overdue", "attention" -> {
+                    title = snap.alerts().stream().filter(a -> a.tableId().equals(t.id())).map(FloorSnapshot.AlertView::label)
+                            .findFirst().orElse("Needs attention");
+                    detail = t.guests() + (t.guests() == 1 ? " guest, " : " guests, ")
+                            + (t.server() == null ? "no server yet." : t.server() + "'s table.");
+                }
+                case "bussing" -> {
+                    title = "Dirty " + ShiftStats.time(t.stateSec());
+                    detail = "Clear it to open " + t.seats() + " seats.";
+                }
+                case "empty", "ready" -> {
+                    title = "Open now";
+                    detail = "Fits " + t.seats() + ". Next party goes to "
+                            + (snap.suggestedServer() == null ? "the host" : snap.suggestedServer()) + ".";
+                }
+                case "blocked" -> {
+                    title = "Blocked";
+                    detail = t.seats() + " seats out of rotation.";
+                }
+                default -> {
+                    if (t.check()) {
+                        title = "Check card up";
+                        detail = "The guests want to pay.";
+                    }
+                }
+            }
+            if (title != null) signals.add(new FloorSnapshot.Signal(t.name(), title, detail, t.tone()));
+        }
+
+        return new FloorSnapshot.Flow(now.toEpochMilli(), snap.source(), stats.start().toEpochMilli(), snap.insights().covers(),
+                snap.insights().seatings(), completedSeatings, completedSeatings == 0 ? null : round1(avgDiningMin),
+                stats.peakStart(), stats.bucketSec(), stats.timeline(now), actions, signals, capacity, snap.servers(),
+                snap.insights(), snap.counts(), check);
     }
 
     /** Estimate for a party not yet on the list: everyone already waiting is seated first. */
@@ -289,11 +480,12 @@ public class FloorEngine {
      * dining time minus how long it has been seated, plus time to turn it. Null if no table fits the party.
      */
     Integer estimateMinutes(List<Party> ahead, int size, Instant now) {
-        if (tables.values().stream().noneMatch(t -> t.config.seats() >= size)) return null;
+        if (tables.values().stream().noneMatch(t -> !t.blocked && fits(t.config.seats(), size))) return null;
         record Slot(int seats, double freeInMin) {
         }
         List<Slot> slots = new ArrayList<>();
         for (Table t : tables.values()) {
+            if (t.blocked) continue;
             double freeIn = switch (t.state) {
                 case EMPTY, READY -> t.reservedFor == null ? 0 : avgDiningMin + TURN_TABLE_MIN;
                 case SEATED -> Math.max(MIN_REMAINING_MIN, avgDiningMin - secondsSince(t.seatedAt, now) / 60.0) + TURN_TABLE_MIN;
@@ -303,21 +495,31 @@ public class FloorEngine {
         }
         Comparator<Slot> soonestThenSmallest = Comparator.comparingDouble(Slot::freeInMin).thenComparingInt(Slot::seats);
         for (Party p : ahead) {
-            slots.stream().filter(sl -> sl.seats() >= p.size()).min(soonestThenSmallest).ifPresent(taken -> {
+            slots.stream().filter(sl -> fits(sl.seats(), p.size())).min(soonestThenSmallest).ifPresent(taken -> {
                 slots.remove(taken);
                 slots.add(new Slot(taken.seats(), taken.freeInMin() + avgDiningMin + TURN_TABLE_MIN));
             });
         }
-        double minutes = slots.stream().filter(sl -> sl.seats() >= size).min(soonestThenSmallest).orElseThrow().freeInMin();
+        double minutes = slots.stream().filter(sl -> fits(sl.seats(), size)).min(soonestThenSmallest).orElseThrow().freeInMin();
         return (int) Math.ceil(minutes);
+    }
+
+    /**
+     * Hosts don't put a couple at a six-top while a six is waiting. A table fits a party if it has enough seats and
+     * at most two spare, unless the restaurant has no table that size at all (then any big-enough table will do).
+     */
+    boolean fits(int seats, int size) {
+        if (seats < size) return false;
+        if (seats <= size + 2) return true;
+        return tables.values().stream().noneMatch(t -> t.config.seats() >= size && t.config.seats() <= size + 2);
     }
 
     private String tone(Table t, Instant now) {
         boolean anyOverdue = alerts.stream().anyMatch(a -> a.tableId.equals(t.id()) && secondsSince(a.raisedAt, now) >= overdueAfter(a.type));
         boolean anyOpen = alerts.stream().anyMatch(a -> a.tableId.equals(t.id()) && a.type != AlertType.BUSSING);
         return switch (t.state) {
-            case EMPTY -> t.reservedFor != null ? "reserved" : "empty";
-            case READY -> "ready";
+            case EMPTY -> t.blocked ? "blocked" : t.reservedFor != null ? "reserved" : "empty";
+            case READY -> t.blocked ? "blocked" : "ready";
             case BUSSING -> anyOverdue ? "overdue" : "bussing";
             case SEATED -> anyOverdue ? "overdue" : anyOpen ? "attention" : "ok";
         };

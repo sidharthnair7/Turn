@@ -38,10 +38,17 @@ turn:
 
   # Zones are pixel rectangles in the camera frame. Cards: HELP = 20 + number, CHECK = 30 + number.
   tables:
-    - { number: 1, name: "Table 1", seats: 2, x: 40,  y: 260, w: 220, h: 200 }
-    - { number: 2, name: "Table 2", seats: 4, x: 280, y: 260, w: 220, h: 200 }
-    - { number: 3, name: "Table 3", seats: 2, x: 520, y: 260, w: 220, h: 200 }
-    - { number: 4, name: "Table 4", seats: 6, x: 760, y: 260, w: 260, h: 200 }
+    - { number: 1, name: "Table 1", seats: 2, x: 40,  y: 120, w: 200, h: 180 }
+    - { number: 2, name: "Table 2", seats: 4, x: 280, y: 120, w: 200, h: 180 }
+    - { number: 3, name: "Table 3", seats: 2, x: 520, y: 120, w: 200, h: 180 }
+    - { number: 4, name: "Table 4", seats: 6, x: 760, y: 120, w: 260, h: 180 }
+    - { number: 5, name: "Table 5", seats: 4, x: 40,  y: 400, w: 200, h: 180 }
+    - { number: 6, name: "Table 6", seats: 2, x: 280, y: 400, w: 200, h: 180 }
+    - { number: 7, name: "Table 7", seats: 6, x: 520, y: 400, w: 260, h: 180 }
+    - { number: 8, name: "Table 8", seats: 2, x: 820, y: 400, w: 200, h: 180 }
+
+  # Average spend per cover, only used to put a rough dollar value on idle seats in Shift Flow
+  avg-check: 32
 
   # AWS (optional): set a bucket to publish the public guest wait board and shift summaries to S3.
   # Credentials come from the standard AWS chain (env vars or ~/.aws/credentials), never from this file.
@@ -49,3 +56,4 @@ turn:
     bucket: ""
     region: us-east-1
     every-sec: 10
+    name: ""   # set to keep instances apart in one bucket, e.g. "demo" for the hosted demo

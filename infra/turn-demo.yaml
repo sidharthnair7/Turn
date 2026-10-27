@@ -1,0 +1,134 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Turn hosted demo. One small EC2 instance runs Turn in demo mode (the scripted dinner service, no camera)
+  so anyone can open the Floor, Shift flow and guest pages. It also publishes its own wait board to
+  s3://BUCKET/public/demo/, next to the restaurant's live board in public/. No SSH: use Session Manager.
+
+Parameters:
+  BucketName:
+    Type: String
+    Default: turn-wait-sid
+    Description: The S3 bucket from docs/AWS.md (holds releases/turn.jar and the public guest pages).
+  JarKey:
+    Type: String
+    Default: releases/turn.jar
+    Description: Where the Turn jar was uploaded in that bucket (mvnw package builds target/turn.jar).
+  InstanceType:
+    Type: String
+    Default: t3.micro
+    AllowedValues: [t3.micro, t3.small, t2.micro]
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+
+Resources:
+  TurnRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ec2.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        # Shell access through Systems Manager Session Manager, so no SSH port or key pair is needed.
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: turn-demo-s3
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ReadTheRelease
+                Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub arn:aws:s3:::${BucketName}/releases/*
+              - Sid: PublishOnlyTheDemoBoard
+                Effect: Allow
+                Action: s3:PutObject
+                Resource:
+                  - !Sub arn:aws:s3:::${BucketName}/public/demo/*
+                  - !Sub arn:aws:s3:::${BucketName}/shifts/demo/*
+
+  TurnInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref TurnRole]
+
+  TurnSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Turn demo, HTTP only
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+  TurnInstance:
+    Type: AWS::EC2::Instance
+    CreationPolicy:
+      ResourceSignal:
+        Timeout: PT15M
+    Properties:
+      ImageId: !Ref LatestAmiId
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref TurnInstanceProfile
+      SecurityGroupIds: [!GetAtt TurnSecurityGroup.GroupId]
+      Tags:
+        - { Key: Name, Value: turn-demo }
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -euxo pipefail
+          # Report any failure straight back to CloudFormation instead of leaving the stack waiting.
+          dnf install -y aws-cfn-bootstrap
+          trap '/opt/aws/bin/cfn-signal -e 1 --stack ${AWS::StackName} --resource TurnInstance --region ${AWS::Region}' ERR
+          # Java 25 (Amazon Corretto). Fall back to the Corretto tarball if the package isn't in the repo.
+          dnf install -y java-25-amazon-corretto-headless || {
+            curl -fsSL https://corretto.aws/downloads/latest/amazon-corretto-25-x64-linux-jdk.tar.gz -o /tmp/jdk.tgz
+            mkdir -p /opt/jdk && tar xzf /tmp/jdk.tgz -C /opt/jdk --strip-components=1
+            ln -sf /opt/jdk/bin/java /usr/bin/java
+          }
+          useradd --system --home-dir /opt/turn --shell /sbin/nologin turn || true
+          mkdir -p /opt/turn
+          aws s3 cp s3://${BucketName}/${JarKey} /opt/turn/turn.jar --region ${AWS::Region}
+          chown -R turn:turn /opt/turn
+          cat > /etc/systemd/system/turn.service <<'UNIT'
+          [Unit]
+          Description=Turn hosted demo
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          User=turn
+          WorkingDirectory=/opt/turn
+          ExecStart=/usr/bin/java -Xmx384m -jar /opt/turn/turn.jar --server.port=80 --turn.source=demo --turn.aws.bucket=${BucketName} --turn.aws.region=${AWS::Region} --turn.aws.name=demo
+          AmbientCapabilities=CAP_NET_BIND_SERVICE
+          NoNewPrivileges=true
+          Restart=always
+          RestartSec=5
+
+          [Install]
+          WantedBy=multi-user.target
+          UNIT
+          systemctl daemon-reload
+          systemctl enable --now turn
+          # Tell CloudFormation the stack is ready only once Turn answers its health check.
+          for i in $(seq 1 60); do
+            if curl -fs http://localhost/api/health; then break; fi
+            sleep 5
+          done
+          curl -fs http://localhost/api/health
+          /opt/aws/bin/cfn-signal -e 0 --stack ${AWS::StackName} --resource TurnInstance --region ${AWS::Region}
+
+Outputs:
+  DemoUrl:
+    Description: Turn hosted demo (Floor, Shift flow, guest page). Press Restart demo to replay the shift.
+    Value: !Sub http://${TurnInstance.PublicDnsName}/floor
+  HealthUrl:
+    Description: Health check (source, uptime, last AWS sync)
+    Value: !Sub http://${TurnInstance.PublicDnsName}/api/health
+  DemoGuestPage:
+    Description: The demo's public guest wait page on S3
+    Value: !Sub https://${BucketName}.s3.amazonaws.com/public/demo/index.html

@@ -20,6 +20,7 @@ class Table {
     Instant reservedAt;
     boolean helpVisible;
     boolean checkVisible;
+    boolean blocked; // set by the host: out of rotation (broken, held, closed section)
 
     Table(TableConfig config, Instant now) {
         this.config = config;

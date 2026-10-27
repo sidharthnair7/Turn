@@ -36,6 +36,7 @@ public class VisionService {
     private volatile boolean running;
     private volatile byte[] latestJpeg;
     private volatile long frameNo;
+    private volatile long lastDetectMs = -1;
     /** The latest detections, drawn onto every frame until the next detection replaces them. */
     private volatile Overlay overlay = new Overlay(List.of(), Map.of(), List.of(), List.of());
     private final java.util.concurrent.atomic.AtomicBoolean detecting = new java.util.concurrent.atomic.AtomicBoolean();
@@ -53,6 +54,11 @@ public class VisionService {
 
     public byte[] latestJpeg() {
         return latestJpeg;
+    }
+
+    /** How long the last people detection took, or -1 before the first one. */
+    public long lastDetectMs() {
+        return lastDetectMs;
     }
 
     /** Goes up by one for every new preview frame, so a stream knows when to send. */
@@ -115,7 +121,9 @@ public class VisionService {
                     Mat still = frame.clone();
                     detector.submit(() -> {
                         try {
+                            long d0 = System.nanoTime();
                             List<Rect> found = people.detect(still);
+                            lastDetectMs = (System.nanoTime() - d0) / 1_000_000;
                             List<Marker> seen = markers.detect(still);
                             List<Rect> blur = faces.regions(still, found);
                             Map<Rect, Integer> staffPeople = analyse(found, seen);

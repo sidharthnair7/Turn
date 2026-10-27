@@ -17,6 +17,7 @@
   <a href="/" class="brand">Turn<span class="dot"></span></a>
   <nav class="tabs" aria-label="Views">
     <a href="/floor" class="on" aria-current="page">Floor</a>
+    <a href="/flow">Shift flow</a>
     <a href="/wait" target="_blank" rel="noopener">Guest page <span aria-hidden="true">↗</span></a>
   </nav>
   <div class="nav-right">
@@ -40,10 +41,25 @@
     <div id="summary" class="summary" aria-live="polite"></div>
   </section>
 
+  <section id="rotation" class="rotation rise" style="--d:.05s" aria-label="Server rotation"></section>
+
   <div class="floor">
     <div class="col-main rise" style="--d:.08s">
-      <div class="section-head"><h2>Tables</h2></div>
-      <div id="tables" class="tables"></div>
+      <div class="section-head">
+        <h2>Tables</h2>
+        <div class="view-seg" role="tablist" aria-label="Table view">
+          <button type="button" role="tab" data-view="map" aria-selected="true">Map</button>
+          <button type="button" role="tab" data-view="cards" aria-selected="false">Cards</button>
+        </div>
+      </div>
+      <div id="map-wrap" class="map-wrap">
+        <div id="map" class="map" aria-label="Floor map"></div>
+        <div class="map-foot">
+          <div id="legend" class="legend"></div>
+          <span class="hint">Click a free table to block or unblock it</span>
+        </div>
+      </div>
+      <div id="tables" class="tables" hidden></div>
 
       <figure id="camera-wrap" class="camera">
         <img id="camera" alt="Privacy-blurred camera view" hidden>
@@ -56,19 +72,38 @@
         <header><h2>Needs someone now</h2><span id="alert-count" class="count" hidden></span></header>
         <div id="alerts" class="stack"></div>
       </section>
-      <section class="card rise" style="--d:.2s">
-        <header><h2>Server load</h2></header>
-        <div id="servers"></div>
-        <div id="suggest" class="suggest"></div>
+      <section class="card host rise" style="--d:.2s">
+        <header><h2>Host stand</h2></header>
+        <div id="host-counts" class="host-counts"></div>
+        <div class="host-tabs" role="tablist">
+          <button type="button" role="tab" data-list="wait" aria-selected="true">Waitlist <span id="wait-count" class="n"></span></button>
+          <button type="button" role="tab" data-list="rsv" aria-selected="false">Reservations <span id="rsv-count" class="n"></span></button>
+        </div>
+        <div id="waitlist" class="stack plist"></div>
+        <div id="reservations" class="stack plist" hidden></div>
+        <form id="add-walkin" class="add-form" hidden>
+          <input name="name" maxlength="30" placeholder="Name" required>
+          <select name="size" aria-label="Party size">
+            <option>1</option><option selected>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option>
+          </select>
+          <input name="note" maxlength="40" placeholder="Note: birthday, high chair…" class="wide">
+          <button class="btn btn-dark btn-sm" type="submit">Add to list</button>
+        </form>
+        <form id="add-rsv" class="add-form" hidden>
+          <input name="name" maxlength="30" placeholder="Name" required>
+          <select name="size" aria-label="Party size">
+            <option>1</option><option selected>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option>
+          </select>
+          <input name="time" type="time" required aria-label="Time">
+          <input name="note" maxlength="40" placeholder="Note (optional)" class="wide">
+          <button class="btn btn-dark btn-sm" type="submit">Book</button>
+        </form>
+        <button id="add-toggle" class="add-toggle" type="button">+ Add walk-in</button>
+        <div class="suggest" id="avg"></div>
       </section>
       <section class="card rise" style="--d:.26s">
-        <header><h2>Shift insights</h2></header>
+        <header><h2>Shift insights</h2><a class="more" href="/flow">Shift flow →</a></header>
         <div id="insights"></div>
-      </section>
-      <section class="card rise" style="--d:.32s">
-        <header><h2>Waitlist</h2><span id="wait-count" class="count" hidden></span></header>
-        <div id="waitlist" class="stack"></div>
-        <div class="suggest" id="avg"></div>
       </section>
       <p class="privacy rise" style="--d:.38s">Turn tracks tables, not faces. Faces are blurred in the camera view, staff are known only by a badge,
         and no frame is ever saved or sent anywhere.</p>

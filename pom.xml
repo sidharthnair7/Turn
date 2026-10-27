@@ -73,6 +73,8 @@
     </dependencyManagement>
 
     <build>
+        <!-- target/turn.jar: the file the hosted demo downloads from S3 (see infra/) -->
+        <finalName>turn</finalName>
         <resources>
             <resource>
                 <directory>src/main/resources</directory>

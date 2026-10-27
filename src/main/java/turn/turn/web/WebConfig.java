@@ -11,5 +11,6 @@ public class WebConfig implements WebMvcConfigurer {
     public void addViewControllers(ViewControllerRegistry registry) {
         registry.addViewController("/floor").setViewName("forward:/floor.html");
         registry.addViewController("/wait").setViewName("forward:/wait.html");
+        registry.addViewController("/flow").setViewName("forward:/flow.html");
     }
 }

@@ -13,7 +13,13 @@ public record TurnProperties(
         Timing timing,
         Timing demoTiming,
         List<ServerConfig> servers,
-        List<TableConfig> tables) {
+        List<TableConfig> tables,
+        Double avgCheck) {
+
+    /** Average spend per cover, used only to put a rough dollar value on idle seats. */
+    public double check() {
+        return avgCheck == null || avgCheck <= 0 ? 30 : avgCheck;
+    }
 
     public boolean isDemo() {
         return source == null || source.isBlank() || source.equals("demo");

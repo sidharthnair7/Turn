@@ -2,11 +2,13 @@
 
 **Turn runs a restaurant floor from one camera you already own.** It sees which tables need someone, sends the task to the right server, keeps the workload fair, and shows guests at the door an honest wait time. It does this without face recognition and without saving a single frame.
 
-Built in Java 25 with Spring Boot and **OpenCV 5**, with the guest wait board published through **Amazon S3**.
+Built in Java 25 with Spring Boot and **OpenCV 5**. The guest wait board is published through **Amazon S3**, and a **CloudFormation** stack runs a hosted demo on **EC2**.
+
+- **Live guest wait page (S3):** https://turn-wait-sid.s3.amazonaws.com/public/index.html
 
 - **Technical report** (architecture, OpenCV 5, AWS, evaluation, failure cases, responsible use): [docs/REPORT.md](docs/REPORT.md)
 - **Architecture diagram:** [docs/architecture.svg](docs/architecture.svg)
-- **AWS setup:** [docs/AWS.md](docs/AWS.md)
+- **AWS setup and hosted demo:** [docs/AWS.md](docs/AWS.md), [infra/turn-demo.yaml](infra/turn-demo.yaml)
 
 ## Why
 
@@ -20,6 +22,23 @@ Restaurant-floor products like Shire (YC Fall 2026) use CCTV to track tables for
 | Guests have to catch someone's eye | **A table card** (HELP / CHECK) the guest flips, which the camera reads |
 
 ## What it does
+
+**Host (everything in Shire's host view, from one camera):**
+- **Floor map:** tables laid out where they sit, coloured Open, Seated, Needs attention, Dirty or Blocked, with the server's initials. Click a free table to block or unblock it.
+- **Server rotation bar:** each server's tables, and **Next party** on whoever should get the next table (lightest load).
+- **Host stand:**
+  - Counts of open, dirty and seated tables.
+  - A **waitlist** with walk-in notes ("birthday", "high chair"), a suggested table and server for each party, a quoted wait, and **Seat**.
+  - **Reservations** with **Arrived**.
+- **Shift flow (`/flow`):**
+  - covers, parties, tables turned, average turn time and peak
+  - a timeline
+  - **Do this next** recommendations
+  - live floor signals
+  - idle seats and waiting covers, valued at your average check
+  - server load as an operational view, never a ranking
+
+**Floor and servers:**
 
 - **Table states:** Empty → Seated → (guests leave) Needs bussing → (a staff badge visits) Ready → Empty
 - **Alerts, routed to the table's server:**
@@ -41,7 +60,8 @@ Restaurant-floor products like Shire (YC Fall 2026) use CCTV to track tables for
   - response time per alert type, and how fast tables are reset
   - plain-language tips like "Slowest first visit: Table 2 waited 34 s"
   - per table and per alert type, never per person
-- **Privacy view:** a camera preview with every face blurred (OpenCV zoo YuNet; if a face isn't found, the top of the person's box is blurred) and staff labelled only by badge number.
+- **Health:** `/api/health` reports the source, detection time, frames streamed and the last AWS sync.
+- **Privacy view:** a smooth camera preview (detection on its own thread, MJPEG stream) with every face blurred (OpenCV zoo YuNet; if a face isn't found, the top of the person's box is blurred) and staff labelled only by badge number.
 
 ## Run it
 
@@ -82,11 +102,13 @@ Needs Java 25 and Windows. The OpenCV 5 Java bindings come from OpenCV's officia
 
 ### AWS (optional)
 
-Pass `--turn.aws.bucket=<bucket>` and Turn publishes the anonymous wait board and the guest page to S3 every 10 s. Steps are in [docs/AWS.md](docs/AWS.md). With no bucket set, cloud sync is off and everything runs locally.
+Pass `--turn.aws.bucket=<bucket>` and Turn publishes the anonymous wait board and the guest page to S3 every 10 s. With no bucket set, cloud sync is off and everything runs locally.
+
+For the hosted demo, run `mvnw package -DskipTests`, upload `target/turn.jar` to the bucket's `releases/` folder, and create a stack from [infra/turn-demo.yaml](infra/turn-demo.yaml). It runs the demo shift on EC2 behind port 80, with no SSH. Steps are in [docs/AWS.md](docs/AWS.md).
 
 ### Test and evaluate
 
-- `mvnw test` runs the floor-logic and cloud-board tests.
+- `mvnw test` runs 16 tests: floor logic (seating, greeting, cards, bussing, double-seat blocking, table choice, wait estimates, blocking, reservations, suggestions, Shift Flow) and the cloud board.
 - `java --enable-native-access=ALL-UNNAMED -cp "target/classes;<maven classpath>" turn.turn.eval.Evaluate <clip> <outDir> 10 40` compares NanoDet and YOLOX on a clip and writes a CSV plus annotated frames. Results are in [docs/eval/](docs/eval/).
 
 ### Markers (ArUco, `DICT_4X4_50`) in `markers/`
@@ -97,31 +119,35 @@ Pass `--turn.aws.bucket=<bucket>` and Turn publishes the anonymous wait board an
 ## How it works
 
 ```
-camera/clip → OpenCV 5:   NanoDet (dnn) finds people  +  ArucoDetector finds badges and cards
+camera/clip → OpenCV 5:   YOLOX-S or NanoDet (dnn) finds people  +  ArucoDetector finds badges and cards
             → per table:  guests in zone, staff badges in zone, cards up?
-            → FloorEngine (state machine, alerts, load, waitlist, estimates)
-            → REST /api/floor, /api/wait  → Floor and Wait pages (plain HTML/JS, poll every 1–2 s)
+            → FloorEngine (state machine, alerts, rotation, waitlist, reservations, estimates, shift flow)
+            → REST /api/floor, /api/flow, /api/wait  → Floor, Shift flow and Wait pages
+            → CloudSync → S3 (guest wait board, shift history)
 demo script ───────────────────────────────┘ (same engine, no camera)
 ```
 
 - `floor/FloorEngine.java`: the state machine, alert routing, load, and the waitlist simulation. It only ever sees counts and badge IDs, never images.
-- `vision/`: `PersonDetector` (OpenCV zoo NanoDet, ported to Java and OpenCV 5), `MarkerDetector` (ArUco), and `VisionService` (capture loop and privacy preview).
+- `vision/`: `YoloxDetector` and `PersonDetector` (OpenCV zoo YOLOX-S and NanoDet, ported to Java and OpenCV 5), `MarkerDetector` (ArUco), `FaceBlurrer` (YuNet), and `VisionService` (capture, detection thread, MJPEG privacy preview).
+- `cloud/CloudSync.java`: publishes the wait board to S3. `infra/turn-demo.yaml`: the hosted demo stack.
 - `demo/DemoSource.java`: the scripted service.
-- [`frontend/`](frontend/): the Floor and Wait pages in plain HTML, CSS and JS. Maven packages them as the web root, so `/` and `/wait` serve them.
-- Tests: `mvnw test`. They cover seating, greeting, the check card, bussing, double-seat blocking, table choice and wait estimates.
+- [`frontend/`](frontend/): the landing page, Floor, Shift flow, Wait and S3 guest pages. Maven packages them as the web root.
 
 ## Limits we measured (OpenCV 5, on a laptop)
 
 - **Background subtraction (MOG2) forgets a person who sits still within about 4 s,** so Turn uses a person detector for "seated" instead.
 - **NanoDet at the zoo's default 0.35 threshold called traffic cones "people".** Turn uses 0.5, which dropped them in testing.
 - **Badges smaller than about 40 px in the image were missed when turned 45°.** Keep the camera close (about 2 m for a phone-screen badge) or print badges larger.
-- **Zones are drawn in config, not in the UI.** One camera only.
+- **Zones are drawn in config, not in the UI.** One camera per Turn instance.
+- **Staff without badges inside a table zone count as guests.** Zones go around tables only.
 - **Dining time is one global average,** not per party size.
 
 ## Credits
 
 - [OpenCV](https://opencv.org) 5.0.0 (Apache-2.0)
-- NanoDet model from the [OpenCV model zoo](https://huggingface.co/opencv/object_detection_nanodet) (Apache-2.0)
+- YOLOX-S, NanoDet and YuNet from the [OpenCV model zoo](https://huggingface.co/opencv) (Apache-2.0 / MIT)
+- Footage: Pexels video 16478422, Mixkit clips 4385 and 44025 (free licences)
+- Front end design: Basu
 - `vtest.avi` sample from the OpenCV package
 
 MIT licensed, see [LICENSE](LICENSE).

@@ -60,7 +60,21 @@ public class DemoSource {
             // Table 4: a big party arrives late and is greeted by Jun.
             Beat.guests("T4", 70, 130, 6),
             Beat.badge("T4", 74, 76, 3),
-            Beat.badge("T4", 106, 108, 3)
+            Beat.badge("T4", 106, 108, 3),
+            // Table 5: a calm four-top Priya looks after all service.
+            Beat.guests("T5", 0, 130, 3),
+            Beat.badge("T5", 4, 6, 1),
+            Beat.badge("T5", 40, 42, 1),
+            Beat.badge("T5", 84, 86, 1),
+            // Table 6: a quick two-top that leaves early. It sits dirty until Jun buses it, then opens up.
+            Beat.guests("T6", 0, 26, 2),
+            Beat.badge("T6", 3, 5, 2),
+            Beat.badge("T6", 52, 54, 3),
+            // Table 7: a six-top that stays open, so the host can seat the Okafors there.
+            // Table 8: a couple Jun greets fast.
+            Beat.guests("T8", 36, 130, 2),
+            Beat.badge("T8", 41, 43, 3),
+            Beat.badge("T8", 88, 90, 3)
     );
     static final double LENGTH_SEC = 130;
 
@@ -91,9 +105,11 @@ public class DemoSource {
 
     public synchronized void restart() {
         engine.reset();
-        engine.join("Amir", 2);
-        engine.join("Lena", 4);
-        engine.join("The Okafors", 6);
+        engine.join("Amir", 2, "Birthday");
+        engine.join("Lena", 4, "High chair");
+        engine.join("The Okafors", 6, "Window if possible");
+        engine.reserve("Patel", 4, Instant.now().plusSeconds(75), "Anniversary");
+        engine.reserve("Chen", 2, Instant.now().plusSeconds(150), null);
         startedAt = Instant.now();
         engine.setSourceStatus("Demo service running (scripted, no camera)");
     }
@@ -107,7 +123,7 @@ public class DemoSource {
             Instant now = Instant.now();
             double t = (now.toEpochMilli() - startedAt.toEpochMilli()) / 1000.0;
             if (t > LENGTH_SEC) engine.setSourceStatus("Demo finished. Press Restart demo to run it again.");
-            engine.tick(observationsAt(t), now);
+            engine.tick(observationsAt(t, tableIds()), now);
             try {
                 Thread.sleep(250);
             } catch (InterruptedException e) {
@@ -116,9 +132,13 @@ public class DemoSource {
         }
     }
 
-    static List<TableObservation> observationsAt(double t) {
+    private List<String> tableIds() {
+        return props.tables().stream().map(TurnProperties.TableConfig::id).toList();
+    }
+
+    static List<TableObservation> observationsAt(double t, List<String> tableIds) {
         List<TableObservation> out = new ArrayList<>();
-        for (String table : List.of("T1", "T2", "T3", "T4")) {
+        for (String table : tableIds) {
             int guests = 0;
             Set<Integer> badges = new HashSet<>();
             boolean help = false, check = false;

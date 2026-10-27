@@ -41,6 +41,7 @@ public class CloudSync {
     private ScheduledExecutorService timer;
     private S3Client s3;
     private volatile String lastError;
+    private volatile Instant lastSyncAt;
 
     public CloudSync(AwsProperties aws, TurnProperties props, FloorEngine engine) {
         this.aws = aws;
@@ -56,24 +57,28 @@ public class CloudSync {
         }
         s3 = S3Client.builder().region(Region.of(aws.region())).build();
         try {
-            put("public/index.html", new ClassPathResource("static/cloud/index.html").getContentAsByteArray(), "text/html; charset=utf-8");
+            // The guest page plus the same stylesheet and theme switch the rest of Turn uses.
+            put(aws.publicPrefix() + "index.html", new ClassPathResource("static/cloud/index.html").getContentAsByteArray(), "text/html; charset=utf-8");
+            put(aws.publicPrefix() + "turn.css", new ClassPathResource("static/css/turn.css").getContentAsByteArray(), "text/css; charset=utf-8");
+            put(aws.publicPrefix() + "theme.js", new ClassPathResource("static/js/theme.js").getContentAsByteArray(), "text/javascript; charset=utf-8");
         } catch (Exception e) {
             log.warn("Could not upload the guest page: {}", e.getMessage());
         }
         timer = Executors.newSingleThreadScheduledExecutor(r -> new Thread(r, "cloud-sync"));
         timer.scheduleWithFixedDelay(this::publish, 0, Math.max(2, aws.everySec()), TimeUnit.SECONDS);
-        log.info("Cloud sync on: s3://{}/public/ every {} s", aws.bucket(), aws.everySec());
+        log.info("Cloud sync on: s3://{}/{} every {} s", aws.bucket(), aws.publicPrefix(), aws.everySec());
     }
 
     void publish() {
         try {
             FloorSnapshot snap = engine.snapshot();
-            put("public/wait.json", json.writeValueAsBytes(waitBoard(snap)), "application/json");
+            put(aws.publicPrefix() + "wait.json", json.writeValueAsBytes(waitBoard(snap)), "application/json");
             Map<String, Object> shift = new LinkedHashMap<>();
             shift.put("updatedAt", Instant.now().toString());
             shift.put("source", snap.source());
             shift.put("insights", snap.insights());
-            put("shifts/" + LocalDate.now() + ".json", json.writeValueAsBytes(shift), "application/json");
+            put(aws.shiftsPrefix() + LocalDate.now() + ".json", json.writeValueAsBytes(shift), "application/json");
+            lastSyncAt = Instant.now();
             if (lastError != null) log.info("Cloud sync recovered");
             lastError = null;
         } catch (Exception e) {
@@ -95,6 +100,18 @@ public class CloudSync {
         board.put("freeTables", snap.tables().stream().filter(t -> "EMPTY".equals(t.state())).count());
         board.put("etaMinBySize", eta);
         return board;
+    }
+
+    public boolean enabled() {
+        return aws.enabled();
+    }
+
+    public Instant lastSyncAt() {
+        return lastSyncAt;
+    }
+
+    public String lastError() {
+        return lastError;
     }
 
     private void put(String key, byte[] body, String type) {

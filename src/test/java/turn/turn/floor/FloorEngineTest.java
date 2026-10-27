@@ -33,7 +33,7 @@ class FloorEngineTest {
         clock = new TestClock();
         TurnProperties props = new TurnProperties("demo", "lib", "model.onnx", 0.5, T, T,
                 List.of(new ServerConfig(1, "Priya"), new ServerConfig(2, "Marco")),
-                List.of(new TableConfig(1, "Table 1", 2, 0, 0, 10, 10), new TableConfig(2, "Table 2", 4, 20, 0, 10, 10)));
+                List.of(new TableConfig(1, "Table 1", 2, 0, 0, 10, 10), new TableConfig(2, "Table 2", 4, 20, 0, 10, 10)), 30.0);
         engine = new FloorEngine(props, clock);
     }
 
@@ -136,5 +136,61 @@ class FloorEngineTest {
         // Both tables just sat down: 45 min average + 2 min to turn the table.
         assertEquals(47, engine.estimateForNewParty(2));
         assertNull(engine.estimateForNewParty(8), "no table seats eight");
+    }
+
+    @Test
+    void aBlockedTableIsLeftOutOfSeatingAndWaitTimes() {
+        assertTrue(engine.toggleBlock("T1"));
+        assertEquals("blocked", table("T1").tone());
+        assertEquals(1, engine.snapshot().counts().blocked());
+        Party p = engine.join("Amir", 2);
+        assertEquals("Table 2", engine.seatParty(p.id(), null), "the blocked 2-top is skipped");
+        Party lena = engine.join("Lena", 2);
+        assertThrows(IllegalStateException.class, () -> engine.seatParty(lena.id(), "T1"));
+        engine.leaveWaitlist(lena.id());
+        assertEquals(47, engine.estimateForNewParty(2), "only the 4-top counts, and it's taken");
+        assertFalse(engine.toggleBlock("T1"), "unblocking puts it back");
+        assertEquals(0, engine.estimateForNewParty(2));
+    }
+
+    @Test
+    void aTableWithGuestsCantBeBlocked() {
+        see(3, TableObservation.of("T1", 2, Set.of()));
+        assertThrows(IllegalStateException.class, () -> engine.toggleBlock("T1"));
+    }
+
+    @Test
+    void anArrivingReservationGoesFirstAndIsSeatedWhenATableFits() {
+        engine.join("Amir", 2, "Birthday");
+        var r = engine.reserve("Patel", 4, clock.instant().plusSeconds(600), "Anniversary");
+        assertEquals(1, engine.snapshot().reservations().size());
+        assertEquals("Table 2", engine.arrive(r.id()));
+        assertTrue(engine.snapshot().reservations().isEmpty());
+        assertEquals("Birthday", engine.snapshot().waitlist().get(0).note(), "walk-in notes travel with the party");
+    }
+
+    @Test
+    void eachWaitingPartyIsSuggestedADifferentFreeTableAndServer() {
+        engine.join("Amir", 2);
+        engine.join("Kim", 2);
+        var list = engine.snapshot().waitlist();
+        assertEquals("Table 1", list.get(0).suggestedTable());
+        assertEquals("Table 2", list.get(1).suggestedTable(), "a 4-top is fine for a couple, and Table 1 is already offered");
+        assertNotNull(list.get(0).suggestedServer());
+    }
+
+    @Test
+    void shiftFlowRecommendsSeatingAndBussingAndCountsIdleSeats() {
+        see(3, TableObservation.of("T2", 4, Set.of(1)));
+        see(6, TableObservation.of("T2", 0, Set.of()));
+        engine.join("Amir", 2);
+        var flow = engine.flow();
+        var titles = flow.actions().stream().map(FloorSnapshot.Action::title).toList();
+        assertTrue(titles.contains("Seat Amir at Table 1"), titles.toString());
+        assertTrue(titles.contains("Bus Table 2"), titles.toString());
+        assertEquals(4, flow.capacity().seatsToTurn());
+        assertEquals(4 * 30.0, flow.capacity().idleValue(), 0.01);
+        assertEquals(4, flow.covers());
+        assertEquals(1, flow.tablesTurned());
     }
 }

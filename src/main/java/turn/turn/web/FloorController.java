@@ -8,6 +8,9 @@ import turn.turn.floor.FloorEngine;
 import turn.turn.floor.FloorSnapshot;
 import turn.turn.floor.Party;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.Map;
 
 @RestController
@@ -43,12 +46,52 @@ public class FloorController {
         return map;
     }
 
-    public record JoinRequest(String name, int size) {
+    /** The owner's Shift Flow page. */
+    @GetMapping("/flow")
+    public FloorSnapshot.Flow flow() {
+        return engine.flow();
+    }
+
+    /** note is optional: the host adds one for walk-ins ("birthday", "high chair"). */
+    public record JoinRequest(String name, int size, String note) {
     }
 
     @PostMapping("/waitlist")
     public Party join(@RequestBody JoinRequest req) {
-        return engine.join(req.name(), req.size());
+        return engine.join(req.name(), req.size(), req.note());
+    }
+
+    /** time is "HH:mm" today, in the restaurant's time zone. */
+    public record ReserveRequest(String name, int size, String time, String note) {
+    }
+
+    @PostMapping("/reservations")
+    public Map<String, String> reserve(@RequestBody ReserveRequest req) {
+        LocalTime time;
+        try {
+            time = LocalTime.parse(req.time());
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Pick a time for the reservation.");
+        }
+        ZoneId zone = ZoneId.systemDefault();
+        var at = LocalDate.now(zone).atTime(time).atZone(zone).toInstant();
+        return Map.of("id", engine.reserve(req.name(), req.size(), at, req.note()).id());
+    }
+
+    @DeleteMapping("/reservations/{id}")
+    public void cancelReservation(@PathVariable String id) {
+        engine.cancelReservation(id);
+    }
+
+    @PostMapping("/reservations/{id}/arrive")
+    public Map<String, String> arrive(@PathVariable String id) {
+        String table = engine.arrive(id);
+        return table == null ? Map.of() : Map.of("table", table);
+    }
+
+    @PostMapping("/tables/{id}/block")
+    public Map<String, Boolean> block(@PathVariable String id) {
+        return Map.of("blocked", engine.toggleBlock(id));
     }
 
     @DeleteMapping("/waitlist/{id}")
