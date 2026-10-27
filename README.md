@@ -10,7 +10,7 @@ Team: Sid (vision, floor engine, AWS, evaluation) and Basu (front end design).
 
 | | |
 |---|---|
-| **Hosted demo (EC2)** | The `DemoUrl` link on our Devpost page. Press **Restart demo** for a scripted two-minute, eight-table shift. Open **Shift flow** in the top bar |
+| **Hosted demo (EC2)** | http://ec2-54-159-33-241.compute-1.amazonaws.com/floor Press **Restart demo** for a scripted two-minute, eight-table shift. Open **Shift flow** in the top bar |
 | **Guest wait page (S3)** | https://turn-wait-sid.s3.amazonaws.com/public/index.html. It's fed by Turn running the real dining clip on our machine; when that machine is off, the page says it's not updated |
 | **Technical report** | [docs/REPORT.md](docs/REPORT.md): architecture, OpenCV 5, AWS, evaluation, failure cases, gaps answered, responsible use |
 | **Architecture** | [docs/architecture.svg](docs/architecture.svg) |

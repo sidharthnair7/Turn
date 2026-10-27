@@ -10,7 +10,7 @@ Turn runs a restaurant floor from one camera. It keeps every table live, routes 
 
 | What | Where |
 |---|---|
-| Hosted demo (EC2) | The `DemoUrl` from the CloudFormation stack, listed in the Devpost "Try it out" links. Press **Restart demo** for a scripted two-minute, eight-table shift. Open **Shift flow** from the top bar |
+| Hosted demo (EC2) | http://ec2-54-159-33-241.compute-1.amazonaws.com/floor (from the CloudFormation stack). Press **Restart demo** for a scripted two-minute, eight-table shift. Open **Shift flow** from the top bar |
 | Guest wait page (S3) | https://turn-wait-sid.s3.amazonaws.com/public/index.html. It's fed by Turn running the real dining clip on our machine, so it shows "Not updated for a while" when that machine is off. The hosted demo's own board is at `public/demo/index.html` |
 | Real vision on real footage | README, "Run it", then `-Dspring-boot.run.profiles=dining` |
 | Proof that a badge clears an alert on real footage | §7.3 and `docs/img/badge-read.jpg` |
