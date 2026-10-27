@@ -77,7 +77,7 @@
   <text x="806" y="518" font-size="13">IAM role: read jar, write demo board</text>
   <text x="806" y="540" fill="#64748b" font-size="12">no SSH; Session Manager; recovery alarm</text>
 
-  <text x="806" y="584" fill="#64748b" font-size="12">Restaurant PC key: PutObject on public/, shifts/ only</text>
+  <text x="806" y="584" fill="#64748b" font-size="12">PC key: write public/ and shifts/ only</text>
 
   <!-- arrows -->
   <path d="M180 135 H218" stroke="#374151" stroke-width="2" marker-end="url(#a)"/>

@@ -4,6 +4,9 @@
   const root = document.documentElement;
   let saved = null;
   try { saved = localStorage.getItem(KEY); } catch (e) { /* storage blocked: follow the system */ }
+  // ?theme=dark or ?theme=light forces a theme for this load (used for screenshots and links).
+  const forced = new URLSearchParams(location.search).get("theme");
+  if (forced === "dark" || forced === "light") saved = forced;
   const dark = saved ? saved === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
   root.dataset.theme = dark ? "dark" : "light";
 
