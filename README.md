@@ -2,7 +2,11 @@
 
 **Turn runs a restaurant floor from one camera you already own.** It sees which tables need someone, sends the task to the right server, keeps the workload fair, and shows guests at the door an honest wait time. It does this without face recognition and without saving a single frame.
 
-Built in Java 25 with Spring Boot and **OpenCV 5**.
+Built in Java 25 with Spring Boot and **OpenCV 5**, with the guest wait board published through **Amazon S3**.
+
+- **Technical report** (architecture, OpenCV 5, AWS, evaluation, failure cases, responsible use): [docs/REPORT.md](docs/REPORT.md)
+- **Architecture diagram:** [docs/architecture.svg](docs/architecture.svg)
+- **AWS setup:** [docs/AWS.md](docs/AWS.md)
 
 ## Why
 
@@ -54,7 +58,8 @@ Needs Java 25 and Windows. The OpenCV 5 Java bindings come from OpenCV's officia
       mvnw install:install-file -Dfile=lib/opencv-500.jar -DgroupId=org.opencv -DartifactId=opencv -Dversion=5.0.0 -Dpackaging=jar
       ```
 2. **Get the models** from the OpenCV model zoo (Apache-2.0 / MIT) into `lib/models/`:
-   - people: https://huggingface.co/opencv/object_detection_nanodet/resolve/main/object_detection_nanodet_2022nov.onnx
+   - people, wide rooms: https://huggingface.co/opencv/object_detection_yolox/resolve/main/object_detection_yolox_2022nov.onnx
+   - people, close-up cameras: https://huggingface.co/opencv/object_detection_nanodet/resolve/main/object_detection_nanodet_2022nov.onnx
    - faces (for the blur): https://huggingface.co/opencv/face_detection_yunet/resolve/main/face_detection_yunet_2023mar.onnx
 3. **Run:**
    ```
@@ -72,6 +77,17 @@ Needs Java 25 and Windows. The OpenCV 5 Java bindings come from OpenCV's officia
 - **`file:path/to/clip.mp4`:** a recorded clip.
   - `mvnw spring-boot:run -Dspring-boot.run.profiles=clip` runs the real pipeline on OpenCV's own sample video (`lib/samples/vtest.avi`, copied from the OpenCV package).
   - `mvnw spring-boot:run -Dspring-boot.run.profiles=restaurant` runs it on free-licence restaurant footage: Mixkit clip 44025, "Man and woman eating and talking". Download https://assets.mixkit.co/videos/44025/44025-720.mp4 to `lib/samples/mixkit-44025-couple-eating.mp4`. The diner is detected and blurred, the table goes Seated, then Not greeted.
+
+  - **`mvnw spring-boot:run -Dspring-boot.run.profiles=dining`** runs the main demo: a busy real dining room (Pexels video 16478422, free licence) with YOLOX-S and four table zones. Download it from https://www.pexels.com/video/16478422/ to `lib/samples/pexels-16478422.mp4`. Tables go Seated from the footage, Not greeted alerts follow, and every face is blurred.
+
+### AWS (optional)
+
+Pass `--turn.aws.bucket=<bucket>` and Turn publishes the anonymous wait board and the guest page to S3 every 10 s. Steps are in [docs/AWS.md](docs/AWS.md). With no bucket set, cloud sync is off and everything runs locally.
+
+### Test and evaluate
+
+- `mvnw test` runs the floor-logic and cloud-board tests.
+- `java --enable-native-access=ALL-UNNAMED -cp "target/classes;<maven classpath>" turn.turn.eval.Evaluate <clip> <outDir> 10 40` compares NanoDet and YOLOX on a clip and writes a CSV plus annotated frames. Results are in [docs/eval/](docs/eval/).
 
 ### Markers (ArUco, `DICT_4X4_50`) in `markers/`
 
